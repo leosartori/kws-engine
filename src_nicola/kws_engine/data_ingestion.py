@@ -231,6 +231,7 @@ def main(argv):
     filenames = []
     labels = []
     labels_counter = 0
+    labels_dict = {}
 
     entry_list = os.listdir(TRAIN_DIR)
     entry_list.sort() # faccio così perchè os.listdir() restituisce in ordine arbitrario in teoria
@@ -240,6 +241,8 @@ def main(argv):
         # skipping files in root directory and background noise folder (non dovrebbe essere una classe ma era usata solo per aggiungere rumore mi sembra)
         if (os.path.isfile(TRAIN_DIR + '/' + entry) is True) or (entry == '_background_noise_'):
             continue
+
+        labels_dict[labels_counter] = entry
 
         for file in os.listdir(TRAIN_DIR + '/' + entry):
 
@@ -271,9 +274,10 @@ def main(argv):
     num_labels = Y_train.shape[1]
 
     print('Total number of audio files in the dataset: ' + str(filenames_numpy.shape[0]))
-    print("Total number of classes in the dataset: " + str(num_labels))
-    print("Total number of audio files in the training set: " + str(X_train_filenames.shape[0]))
-    print("Total number of audio files in the validation set: " + str(X_val_filenames.shape[0]))
+    print('Total number of classes in the dataset: ' + str(num_labels))
+    print('Classes: ' + str(labels_dict.values()))
+    print('Total number of audio files in the training set: ' + str(X_train_filenames.shape[0]))
+    print('Total number of audio files in the validation set: ' + str(X_val_filenames.shape[0]))
 
 
     # CREAZIONE E TRAIN DEL MODELLO
@@ -282,6 +286,7 @@ def main(argv):
     train_steps = int(np.ceil(X_train_filenames.shape[0] / BATCH_SIZE))
     val_steps = int(np.ceil(X_val_filenames.shape[0] / BATCH_SIZE))
 
+    return
 
     # traina classificatore
     if DEBUG_CLASSIFIER:
