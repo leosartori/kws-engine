@@ -6,7 +6,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import numpy as np
 import tensorflow as tf
-import math
 from tensorflow.keras.layers import Input, Dense
 from tensorflow.keras.models import Model
 
@@ -16,7 +15,6 @@ import scipy.io.wavfile as wav
 
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from random import randrange
 
 from absl import app
 
@@ -25,19 +23,22 @@ from absl import app
 
 # ---------------------------- PARAMETRI DI INPUT ----------------------------
 
-TRAIN_DIR = "C:/Users/admin/Desktop/HDA/final_project/dataset/_"
+TRAIN_DIR = "C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train"
 
 # scegliere se usare come modello il classificatore di debug oppure l'autoencoder
-DEBUG_CLASSIFIER = True
+DEBUG_CLASSIFIER = False
 
-NUM_FEATURES = 26  # number of features per sample (Mel)
-num_units = 5  # GRU units in encoder and decoder
-BATCH_SIZE = 1
+NUM_FEATURES = 320  # number of features per sample (Mel)
+NUM_UNITS = 256  # GRU units in encoder and decoder
+BATCH_SIZE = 32
 LR = 0.01
-NUM_EPOCH = 2
+NUM_EPOCH = 100
+
+MAX_LENGTH_TIMESTEPS = 9
+WIN_LEN = 0.2
+WIN_STEP = 0.1
 
 # ----------------------------  FUNZIONI DI SUPPORTO ------------------------------
-
 def debug_classifier_model(num_tokens, num_units, num_labels):
     """
     Modello di un classificatore RNN per il debug, classifica gli audio nell rispettiva classe.
@@ -72,16 +73,24 @@ def rnn_model(num_tokens, num_units):
     # encoder
     # Define an input sequence and process it.
     encoder_inputs = Input(shape=(None, num_tokens))
-    encoder_outputs, encoder_state = tf.keras.layers.GRU(num_units, return_state=True)(encoder_inputs) # input = [batch, timesteps, feature]
+    # N_l = 2 (due livelli)
+    encoder_outputs_1, encoder_state_1 = tf.keras.layers.GRU(num_units, return_sequences=True, return_state=True)(encoder_inputs) # input = [batch, timesteps, feature]
+    encoder_outputs_2, encoder_state_2 = tf.keras.layers.GRU(num_units, return_state=True)(encoder_outputs_1) # input = [batch, timesteps, feature]
 
     # Set up the decoder, using `encoder_states` as initial state.
     decoder_inputs = Input(shape=(None, num_tokens))
-    # TODO: rendere il decoder bidirezionale
-    decoder_outputs, _ = tf.keras.layers.GRU(num_units, return_sequences=True, return_state=True)(decoder_inputs, initial_state = encoder_state)
-    fin_output = Dense(num_tokens, activation=None)(decoder_outputs)
+    init_dec_1 = (encoder_state_2, encoder_state_2)
+    init_dec_2 = (encoder_state_1, encoder_state_1)
+    # N_l = 2 (due livelli)
+    decoder_outputs_1, *_ = tf.keras.layers.Bidirectional(
+        tf.keras.layers.GRU(num_units, return_sequences=True, return_state=True))(decoder_inputs, initial_state=init_dec_1)
+    decoder_outputs_2, *_ = tf.keras.layers.Bidirectional(
+        tf.keras.layers.GRU(num_units, return_sequences=True, return_state=True))(decoder_outputs_1, initial_state=init_dec_2)
+
+    fin_output = Dense(num_tokens, activation=None)(decoder_outputs_2)
 
     seq_2_seq_autoencoder = Model((encoder_inputs, decoder_inputs), fin_output)
-    encoder = Model(encoder_inputs, encoder_outputs)
+    encoder = Model(encoder_inputs, encoder_outputs_2)
 
     return seq_2_seq_autoencoder, encoder
 
@@ -93,32 +102,51 @@ def calculate_dec_input(enc_input):
     :param enc_input:
     :return:
     """
+    # dec_input(0) = [0... 0]; dec_input(T) = enc_input(T - 1)
+
+    # inizializza vettore di otput
     dec_input = np.zeros(enc_input.shape, dtype='float32')
-    # dec_input(0) = [0 ... 0]; dec_input(T) = enc_input(T-1)
-
-    #for sample in range(0, enc_input.shape[0]):
-        #for timestep in range(0, enc_input.shape[1] - 1):
-            #dec_input[sample, timestep + 1, :] = enc_input[sample, timestep, :]
-
+    # copia dai valori di input encoder ma shiftati di un timestep
     dec_input[1:, :] = enc_input[:-1, :]
 
     return dec_input
 
 
+# funzione presa da https://github.com/jameslyons/python_speech_features/commit/9ab32879b1fb31a38c1a70392fd21370b8fdc30f
+# (commit nella repo di python_speech_features), serve per calcolare il parametro nfft automaticamente da rate e winlen
+# Dovrebbe funzionare ugualmente mettendo nfft=None come parametro della funzione mfcc, ma a me dava errore
+def calculate_nfft(samplerate, winlen):
+    """Calculates the FFT size as a power of two greater than or equal to
+    the number of samples in a single window length.
+
+    Having an FFT less than the window length loses precision by dropping
+    many of the samples; a longer FFT than the window allows zero-padding
+    of the FFT buffer which is neutral in terms of frequency domain conversion.
+    :param samplerate: The sample rate of the signal we are working with, in Hz.
+    :param winlen: The length of the analysis window in seconds.
+    """
+    window_length_samples = winlen * samplerate
+    nfft = 1
+    while nfft < window_length_samples:
+        nfft *= 2
+    return nfft
+
+
 def compute_spectrogram(filename, num_filt):
 
     filename = filename.decode()
-    #print(filename)
     rate, sig = wav.read(str(filename))
 
     # TODO: provare diversi valori per i paremtri di mfcc
-    mfcc_feat = mfcc(sig, samplerate=rate, winlen=0.025, winstep=0.01, numcep=num_filt,
-                     nfilt=num_filt, nfft=512, lowfreq=0, highfreq=None, preemph=0.97,
+    mfcc_feat = mfcc(sig, samplerate=rate, winlen=WIN_LEN, winstep=WIN_STEP, numcep=num_filt,
+                     nfilt=num_filt, nfft=calculate_nfft(rate, WIN_LEN), lowfreq=0, highfreq=None, preemph=0.97,
                      ceplifter=22, appendEnergy=True)
 
-    # TODO: normalizzare i valori degli spettrogrammi? Ora sono circa in [-100, 100]
+    # TODO: normalizzare i valori degli spettrogrammi come nel paper Seq-to-Seq (par 2.1)? Ora sono circa in [-100, 100]
 
-    spectr_pad = np.zeros((99, num_filt), dtype='float32')
+    spectr_pad = np.zeros((MAX_LENGTH_TIMESTEPS, num_filt), dtype='float32')
+    # il padding è dovuto al fatto che non da tutti i sample mfcc genera lo stesso numero di timesteps (nonostante
+    # siamo tutti file da 1 sec): la maggior parte sono lunghi 9, ma alcuni 8,7 o 6. PERCHE'?
     spectr_pad[:mfcc_feat.shape[0], :] = mfcc_feat
 
     return spectr_pad
@@ -191,43 +219,6 @@ def main(argv):
 
     # LETTURA DEI FILENAME E CREAZIONE DELLE LABEL
 
-    # # TODO: provare tf.Dataset.listfiles() per la lettura del dataset
-    # # conta numero di file nel trainset
-    # num_samples = 0
-    # for subdirs, dirs, files in os.walk(TRAIN_DIR):
-    #     # ad ogni loop, files contiene la lista dei filename presenti in una sottocartella
-    #     # contiamo tutti i file che sono file audio wav
-    #     files = [f for f in files if f.lower().endswith('.wav')]
-    #     num_samples += len(files)
-    # print('Files in the dataset: ' + str(num_samples))
-    #
-    # filenames = []
-    # labels = np.zeros((num_samples, 1), dtype=int)
-    # filenames_counter = 0
-    # # il contatore delle label parte da -1 perchè itera sulle sottocartelle
-    # # la directory indicata ha label -1 in quanto non contiene file ma cartelle
-    # # la prima sottocartella (es. on) avrà label 0, la seguente 1, ecc.
-    # labels_counter = -1
-    #
-    # for subdir, dirs, files in os.walk(TRAIN_DIR):
-    #     for file in files:
-    #         filepath = os.path.join(subdir, file)
-    #
-    #         if filepath.endswith(".wav"):
-    #             filenames.append(filepath)
-    #             labels[filenames_counter, 0] = labels_counter
-    #             filenames_counter = filenames_counter + 1
-    #
-    #     # incrementa label numerica quando stiamo per passare alla prossima sottocartella
-    #     labels_counter = labels_counter + 1
-    #
-    # # trasformazione della lista dei filename in numpy array
-    # filenames_numpy = np.array(filenames)
-    #
-    # # trasformazione delle label in one hot encoding
-    # labels_one_hot = tf.keras.utils.to_categorical(labels)
-
-
     filenames = []
     labels = []
     labels_counter = 0
@@ -238,7 +229,8 @@ def main(argv):
 
     for entry in entry_list:
 
-        # skipping files in root directory and background noise folder (non dovrebbe essere una classe ma era usata solo per aggiungere rumore mi sembra)
+        # skipping files in root directory and background noise folder
+        # (non dovrebbe essere una classe ma era usata solo per aggiungere rumore mi sembra)
         if (os.path.isfile(TRAIN_DIR + '/' + entry) is True) or (entry == '_background_noise_'):
             continue
 
@@ -252,14 +244,13 @@ def main(argv):
 
         labels_counter += 1
 
-
     # trasformazione delle liste dei filename e labels in numpy array
     filenames_numpy = np.array(filenames)
     labels_numpy = np.array(labels)
 
     # trasformazione delle label in one hot encoding
-    labels_one_hot = tf.keras.utils.to_categorical(labels_numpy) # TODO questa operazione penso si possa fare al momento della
-                                                                 # creazione del Dataset, esempio: dy_valid = tf.data.Dataset.from_tensor_slices(valid_labels).map(lambda z: tf.one_hot(z, 10))
+    labels_one_hot = tf.keras.utils.to_categorical(labels_numpy)
+    # TODO: questa operazione penso si possa fare al momento della creazione del Dataset, vedi sotto
 
     # shuffling dei dati
     filenames_shuffled, labels_one_hot_shuffled = shuffle(filenames_numpy, labels_one_hot)
@@ -279,23 +270,22 @@ def main(argv):
     print('Total number of audio files in the training set: ' + str(X_train_filenames.shape[0]))
     print('Total number of audio files in the validation set: ' + str(X_val_filenames.shape[0]))
 
-
     # CREAZIONE E TRAIN DEL MODELLO
 
     # steps per epoca in modo da passare tutto il dataset
     train_steps = int(np.ceil(X_train_filenames.shape[0] / BATCH_SIZE))
     val_steps = int(np.ceil(X_val_filenames.shape[0] / BATCH_SIZE))
 
-    return
-
     # traina classificatore
     if DEBUG_CLASSIFIER:
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, False, (99, NUM_FEATURES), autoenc_mode=False)
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, False, (99, NUM_FEATURES), autoenc_mode=False)
+        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, False,
+                                       (MAX_LENGTH_TIMESTEPS, NUM_FEATURES), autoenc_mode=False)
+        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, False,
+                                     (MAX_LENGTH_TIMESTEPS, NUM_FEATURES), autoenc_mode=False)
 
         # crea e traina il modello con API Keras
-        debug_classifier = debug_classifier_model(NUM_FEATURES, num_units, num_labels)
+        debug_classifier = debug_classifier_model(NUM_FEATURES, NUM_UNITS, num_labels)
         opt = tf.keras.optimizers.Adam(learning_rate=LR)
         debug_classifier.compile(optimizer=opt, loss=tf.keras.losses.CategoricalCrossentropy(), metrics=["accuracy"])
         debug_classifier.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps, validation_data=val_dataset, validation_steps=val_steps)
@@ -303,16 +293,16 @@ def main(argv):
     # traina autoencoder
     else:
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, False, (99, NUM_FEATURES), autoenc_mode=True)
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, False, (99, NUM_FEATURES), autoenc_mode=True)
+        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, False,
+                                       (MAX_LENGTH_TIMESTEPS, NUM_FEATURES), autoenc_mode=True)
+        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, False,
+                                     (MAX_LENGTH_TIMESTEPS, NUM_FEATURES), autoenc_mode=True)
 
         # crea e traina il modello con API Keras
-        autoenc, _ = rnn_model(NUM_FEATURES, num_units)
+        autoenc, _ = rnn_model(NUM_FEATURES, NUM_UNITS)
         opt = tf.keras.optimizers.Adam(learning_rate=LR)
         autoenc.compile(optimizer=opt, loss=tf.keras.losses.MeanSquaredError(), metrics=["mse"])
         autoenc.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps, validation_data=val_dataset, validation_steps=val_steps)
-
-
 
 
 if __name__ == '__main__':
