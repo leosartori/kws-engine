@@ -203,3 +203,104 @@ class StepDecay:
         print('LR=' + str(alpha))
 
         return float(alpha)
+
+
+import re
+import hashlib
+MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134M
+
+
+def which_set(filename, validation_percentage, testing_percentage):
+    """Determines which data partition the file should belong to.
+
+    We want to keep files in the same training, validation, or testing sets even
+    if new ones are added over time. This makes it less likely that testing
+    samples will accidentally be reused in training when long runs are restarted
+    for example. To keep this stability, a hash of the filename is taken and used
+    to determine which set it should belong to. This determination only depends on
+    the name and the set proportions, so it won't change as other files are added.
+
+    It's also useful to associate particular files as related (for example words
+    spoken by the same person), so anything after '_nohash_' in a filename is
+    ignored for set determination. This ensures that 'bobby_nohash_0.wav' and
+    'bobby_nohash_1.wav' are always in the same set, for example.
+
+    Args:
+    filename: File path of the data sample.
+    validation_percentage: How much of the data set to use for validation.
+    testing_percentage: How much of the data set to use for testing.
+
+    Returns:
+    String, one of 'training', 'validation', or 'testing'.
+    """
+    base_name = os.path.basename(filename)
+    # We want to ignore anything after '_nohash_' in the file name when
+    # deciding which set to put a wav in, so the data set creator has a way of
+    # grouping wavs that are close variations of each other.
+    hash_name = re.sub(r'_nohash_.*$', '', base_name)
+    # This looks a bit magical, but we need to decide whether this file should
+    # go into the training, testing, or validation sets, and we want to keep
+    # existing files in the same set even if more files are subsequently
+    # added.
+    # To do that, we need a stable way of deciding based on just the file name
+    # itself, so we do a hash of that and then use that to generate a
+    # probability value that we use to assign it.
+    hash_name_hashed = hashlib.sha1(hash_name.encode('utf-8')).hexdigest()
+    percentage_hash = ((int(hash_name_hashed, 16) %
+                      (MAX_NUM_WAVS_PER_CLASS + 1)) *
+                     (100.0 / MAX_NUM_WAVS_PER_CLASS))
+    if percentage_hash < validation_percentage:
+        result = 'validation'
+    elif percentage_hash < (testing_percentage + validation_percentage):
+        result = 'testing'
+    else:
+        result = 'training'
+    return result
+
+
+def split_dataset_from_list(filename_list, labels_list, validation_file, testing_file):
+    """Determines which data partition the file should belong to using the provided .txt files and creates
+    three list of filenames respectively for traning, validation and test set.
+    """
+    train_set_filename = []
+    train_set_label = []
+    val_set_filename = []
+    val_set_label = []
+    test_set_filename = []
+    test_set_label = []
+
+    # open files reporting the division betweene validation set and test set
+    val_txt = open(validation_file, "r").read()
+    test_txt = open(testing_file, "r").read()
+
+    val_list = val_txt.split('\n')[:-1]
+    test_list = test_txt.split('\n')[:-1]
+
+    for filename, label in zip(filename_list, labels_list):
+
+        # i file di testo contengono i filename in formato: right/a69b9b3e_nohash_0.wav
+        # mentre noi qui in filename abbiamo il path completo, ne prendo solo la parte finale
+        filename_path_split = filename.split('/')
+        filename_no_path = filename_path_split[-2] + '/' + filename_path_split[-1]
+
+        if filename_no_path in val_list:
+            val_set_filename.append(filename)
+            val_set_label.append(label)
+        elif filename_no_path in test_list:
+            test_set_filename.append(filename)
+            test_set_label.append(label)
+        else:
+            train_set_filename.append(filename)
+            train_set_label.append(label)
+
+    return train_set_filename, train_set_label, val_set_filename, val_set_label, test_set_filename, test_set_label
+
+# DEBUG
+'''
+filelist = [
+    'C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train/on/1a994c9f_nohash_2.wav',
+    'C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train/on/1a994c9f_nohash_3.wav',
+    'C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train/on/1a9afd33_nohash_0.wav'
+]
+split_dataset_from_list(filelist, r'../../../validation_list.txt', r'../../../testing_list.txt')
+'''
