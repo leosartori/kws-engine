@@ -2,12 +2,16 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional
+from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, BatchNormalization
 from tensorflow.keras.models import Model
 
 # Mel features library
 from mfcc_base import mfcc
 import scipy.io.wavfile as wav
+
+import re
+import hashlib
+MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134M
 
 # ----------------------------  FUNZIONI DI SUPPORTO ------------------------------
 def debug_classifier_model(num_tokens, num_units, num_labels):
@@ -75,7 +79,7 @@ def calculate_dec_input(enc_input):
     """
     # dec_input(0) = [0... 0]; dec_input(T) = enc_input(T - 1)
 
-    # inizializza vettore di otput
+    # inizializza vettore di output
     dec_input = np.zeros(enc_input.shape, dtype='float32')
     # copia dai valori di input encoder ma shiftati di un timestep
     dec_input[1:, :] = enc_input[:-1, :]
@@ -123,8 +127,14 @@ def compute_spectrogram(filename, num_filt, max_timesteps, win_len, win_step):
     return spectr_pad
 
 
+def normalize_tensor(x, axes=[0], epsilon=1e-8):
+    mean, variance = tf.nn.moments(x, axes=axes)
+    x_normed = (x - mean) / tf.sqrt(variance + epsilon)  # epsilon to avoid dividing by zero
+    return x_normed
+
+
 def create_dataset(filenames, labels, num_filt, batch_size, shuffle, input_size, autoenc_mode,
-                   max_timesteps, win_len, win_step, cache_file=None):
+                   max_timesteps, win_len, win_step, normalize=False, cache_file=None):
     """
     Crea un oggetto tf.data.Dataset da usare come input per un modello di classificazione o autoencoder
 
@@ -150,21 +160,26 @@ def create_dataset(filenames, labels, num_filt, batch_size, shuffle, input_size,
 
     enc_dataset = enc_dataset.map(to_spectr, num_parallel_calls=os.cpu_count())
 
+    if normalize:
+        norm_enc_dataset = enc_dataset.map(normalize_tensor, num_parallel_calls=os.cpu_count())
+    else:
+        norm_enc_dataset = enc_dataset
+
     # modalità autoencoder, il target è l'input dell'encoder
     if autoenc_mode is True:
         # costruisci input del decoder
         # Mappa la funzione che azzera il primo timestep e shifta gli altri timesteps
         to_dec_input = lambda spectr: (tf.ensure_shape(tf.numpy_function(calculate_dec_input, [spectr],
                                                                         tf.float32), input_size))
-        dec_dataset = enc_dataset.map(to_dec_input, num_parallel_calls=os.cpu_count())
+        dec_dataset = norm_enc_dataset.map(to_dec_input, num_parallel_calls=os.cpu_count())
 
-        dataset = tf.data.Dataset.zip((tf.data.Dataset.zip((enc_dataset, dec_dataset)), enc_dataset))
+        dataset = tf.data.Dataset.zip((tf.data.Dataset.zip((norm_enc_dataset, dec_dataset)), norm_enc_dataset))
 
     # modalità classificazione, il target è la label
     else:
         # come scrivevo sotto, si potrebbe fare qui l'operazione di one hot encoding con qualcosa del tipo
         # dy_valid = tf.data.Dataset.from_tensor_slices(valid_labels).map(lambda z: tf.one_hot(z, 10))
-        dataset = tf.data.Dataset.zip((enc_dataset, target_dataset))
+        dataset = tf.data.Dataset.zip((norm_enc_dataset, target_dataset))
 
     # Cache dataset
     if cache_file:
@@ -200,16 +215,10 @@ class StepDecay:
         exp = np.floor(epoch / self.drop_every)
         alpha = self.init_alpha * (self.factor ** exp)
         # return the learning rate
-        print('LR=' + str(alpha))
-
         return float(alpha)
 
 
-import re
-import hashlib
-MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134M
-
-
+# NON UTILIZZATO DATO CHE ABBIAMO GIA' IL SUO RISULTATO NEI FILE .TXT
 def which_set(filename, validation_percentage, testing_percentage):
     """Determines which data partition the file should belong to.
 

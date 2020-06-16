@@ -7,9 +7,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.callbacks import LearningRateScheduler
 
-from sklearn.utils import shuffle
-from sklearn.model_selection import train_test_split
-
 from absl import app
 
 from support_functions import create_dataset, rnn_model, debug_classifier_model, StepDecay, split_dataset_from_list
@@ -19,7 +16,7 @@ from support_functions import create_dataset, rnn_model, debug_classifier_model,
 
 # ---------------------------- PARAMETRI DI INPUT ----------------------------
 # flag per selezionare i parametri opportuni per runnare il codice sul cluster DEI
-RUN_ON_CLUSTER = False
+RUN_ON_CLUSTER = True
 
 # scegliere se usare come modello il classificatore di debug oppure l'autoencoder
 DEBUG_CLASSIFIER = False
@@ -28,23 +25,22 @@ if RUN_ON_CLUSTER:
     TRAIN_DIR = "/nfsd/hda/DATASETS/Project_1"
     VALIDATION_FILENAME = r'/nfsd/hda/DATASETS/Project_1/validation_list.txt'
     TESTING_FILENAME = r'/nfsd/hda/DATASETS/Project_1/testing_list.txt'
-    BATCH_SIZE = 4096
+    BATCH_SIZE = 2048
     VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 else:
-    #TRAIN_DIR = "C:/Users/Leonardo/Documents/Uni/HDA/Project/speech_commands_v0.02"
+    # TRAIN_DIR = "C:/Users/Leonardo/Documents/Uni/HDA/Project/speech_commands_v0.02"
     TRAIN_DIR = "C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train"
     VALIDATION_FILENAME = r'../../validation_list.txt'
     TESTING_FILENAME = r'../../testing_list.txt'
-    BATCH_SIZE = 8
+    BATCH_SIZE = 32
     VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 
 NUM_FEATURES = 320  # number of features per sample (Mel)
 NUM_UNITS = 256  # GRU units in encoder and decoder
 LR = 0.01
 LR_DROP_FACTOR = 0.5
-DROP_EVERY = 10
-NUM_EPOCH = 1
-# Epoca 45: loss = 20 stabile (possibile sia qui necessario LR=0.001)
+DROP_EVERY = 20
+NUM_EPOCH = 100
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
 MAX_TIMESTEPS = 9
@@ -80,7 +76,6 @@ def main(argv):
 
             if file.lower().endswith('.wav'):
                 filenames.append(TRAIN_DIR + '/' + entry + '/' + file)
-                print(TRAIN_DIR + '/' + entry + '/' + file)
                 labels.append(labels_counter)
 
         labels_counter += 1
@@ -158,6 +153,7 @@ def main(argv):
         # crea dataset con classe Dataset di TF
         train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, False,
                                        (MAX_TIMESTEPS, NUM_FEATURES), True, MAX_TIMESTEPS, WIN_LEN, WIN_STEP)
+
         val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, False,
                                      (MAX_TIMESTEPS, NUM_FEATURES), True, MAX_TIMESTEPS, WIN_LEN, WIN_STEP)
         print('DONE')
