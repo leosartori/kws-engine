@@ -59,7 +59,7 @@ NUM_MLP_UNITS = 150
 LR = 0.001
 LR_DROP_FACTOR = 0.5
 DROP_EVERY = 10
-NUM_EPOCH = 20
+NUM_EPOCH = 10
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
 # nel paper degli autoencoder in valori erano WIN_LEN = 0.2 e WIN_STEP = 0.1 però i file duravano 10 secondi, io userei 25/30ms e 10ms come al solito
@@ -188,13 +188,13 @@ def main(argv):
         # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
 
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, shuffle=True,
+        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, shuffle=False,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP,
                                        normalize=True, cache_file='train_cache')
 
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=True,
+        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=False,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP,
@@ -225,6 +225,7 @@ def main(argv):
         end_time = timer()
         load_time = end_time - start_time
 
+        print()
         print('Done')
         print()
         printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
@@ -260,13 +261,13 @@ def main(argv):
         # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
 
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, shuffle=True,
+        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, shuffle=False,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP,
                                        normalize=True, cache_file='train_cache')
 
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=True,
+        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=False,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP,
@@ -295,13 +296,14 @@ def main(argv):
         print('Training the model:')
         start_time = timer()
 
-        # history = encoder_mlp_classifier.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
-        #                               validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks,
-        #                               verbose=VERBOSE_FIT)
+        history = encoder_mlp.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
+                                      validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks,
+                                      verbose=VERBOSE_FIT)
 
         end_time = timer()
         load_time = end_time - start_time
 
+        print()
         print('Done')
         print()
         printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
@@ -311,12 +313,12 @@ def main(argv):
 
 
         # # save a plot of the loss/mse trend during the training phase
-        # save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
-        # save_training_accuracy_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
-        #
-        # encoder_mlp_classifier.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '_.h5')
-        # print('Model saved to disk')
-        # print()
+        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+        save_training_accuracy_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+
+        encoder_mlp.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '_.h5')
+        print('Model saved to disk')
+        print()
 
         print()
         encoder.summary()

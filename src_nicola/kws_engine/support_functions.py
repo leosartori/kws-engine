@@ -424,8 +424,8 @@ def save_training_accuracy_trend_plot(history, network_model, model_version):
 
     # plot accuracy
     plt.title('Accuracy')
-    plt.plot(history.history['acc'], color='blue', label='train')
-    plt.plot(history.history['val_acc'], color='orange', label='val')
+    plt.plot(history.history['accuracy'], color='blue', label='train')
+    plt.plot(history.history['val_accuracy'], color='orange', label='val')
     plt.ylabel('Accuracy')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper right')
@@ -444,8 +444,8 @@ def printInfo(network_model_to_train, model_version_to_train, num_features, batc
     print('Model version: ' + str(model_version_to_train))
     print('Number of Mel features: ' + str(num_features))
     print('Spectrograms timesteps: ' + str(max_timesteps_stectrograms))
-    print('Time length of the frame' + str(win_len))
-    print('Time step/shift of the frame' + str(win_step))
+    print('Time length of each frame: ' + str(win_len))
+    print('Time step/shift of each frame: ' + str(win_step))
     print('Batch size: ' + str(batch_size))
     print('Number of epochs: ' + str(num_epochs))
     print()
