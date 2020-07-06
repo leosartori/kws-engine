@@ -258,7 +258,7 @@ def normalize_tensor(x, axes=[0], epsilon=1e-8):
 
 
 def create_dataset(filenames, labels, num_features, batch_size, shuffle, input_size, network_model,
-                   win_len, win_step, normalize=False, cache_file=None):
+                   win_len, win_step, normalize=False, cache_file=None, mode='train'):
     """
     Crea un oggetto tf.data.Dataset da usare come input per un modello di classificazione o autoencoder
 
@@ -326,8 +326,9 @@ def create_dataset(filenames, labels, num_features, batch_size, shuffle, input_s
     if shuffle:
         dataset = dataset.shuffle(len(filenames))
 
-    # Repeat the dataset indefinitely
-    dataset = dataset.repeat()
+    # Repeat the dataset indefinitely only during training (and not during testing phase)
+    if mode == 'train':
+        dataset = dataset.repeat()
 
     # Batch
     dataset = dataset.batch(batch_size=batch_size)

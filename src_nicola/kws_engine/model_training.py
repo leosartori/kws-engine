@@ -40,7 +40,7 @@ if RUN_ON_CLUSTER:
     TRAIN_DIR = '/nfsd/hda/DATASETS/Project_1'
     VALIDATION_FILENAME = '/nfsd/hda/DATASETS/Project_1/validation_list.txt'
     TESTING_FILENAME = '/nfsd/hda/DATASETS/Project_1/testing_list.txt'
-    BATCH_SIZE = 1024 # 64 nel paper dell'autoencoder
+    BATCH_SIZE = 64 # 64 nel paper dell'autoencoder
     VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 else:
     # TRAIN_DIR = 'C:/Users/Leonardo/Documents/Uni/HDA/Project/speech_commands_v0.02'
@@ -59,7 +59,7 @@ NUM_MLP_UNITS = 150
 LR = 0.001
 LR_DROP_FACTOR = 0.5
 DROP_EVERY = 10
-NUM_EPOCH = 10
+NUM_EPOCH = 25
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
 # nel paper degli autoencoder in valori erano WIN_LEN = 0.2 e WIN_STEP = 0.1 però i file duravano 10 secondi, io userei 25/30ms e 10ms come al solito
@@ -192,13 +192,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP,
-                                       normalize=True, cache_file='train_cache')
+                                       normalize=True, cache_file='train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=False,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP,
-                                     normalize=True, cache_file='val_cache')
+                                     normalize=True, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
@@ -237,7 +237,7 @@ def main(argv):
         # save a plot of the loss/mse trend during the training phase
         save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
 
-        rnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '_.h5')
+        rnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
         print('Model saved to disk')
         print()
 
@@ -265,19 +265,19 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP,
-                                       normalize=True, cache_file='train_cache')
+                                       normalize=True, cache_file='train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=False,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP,
-                                     normalize=True, cache_file='val_cache')
+                                     normalize=True, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
         # crea e traina il modello con API Keras
         print('Loading the trained autoencoder model...')
-        rnn_autoencoder = load_model('./training_output/models/' + NETWORK_MODEL_TO_LOAD + '_v' + str(MODEL_VERSION_TO_LOAD) + '_.h5')
+        rnn_autoencoder = load_model('./training_output/models/' + NETWORK_MODEL_TO_LOAD + '_v' + str(MODEL_VERSION_TO_LOAD) + '.h5')
         print('Done')
         print()
 
@@ -316,7 +316,7 @@ def main(argv):
         save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
         save_training_accuracy_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
 
-        encoder_mlp.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '_.h5')
+        encoder_mlp.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
         print('Model saved to disk')
         print()
 

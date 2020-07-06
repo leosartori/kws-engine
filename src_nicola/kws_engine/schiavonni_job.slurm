@@ -3,7 +3,7 @@
 #SBATCH --ntasks 1
 #SBATCH --partition allgroups
 #SBATCH --time 23:00:00
-#SBATCH --mem 10G
+#SBATCH --mem 20G
 
 #SBATCH --gres=gpu:1
 
