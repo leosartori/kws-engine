@@ -96,7 +96,6 @@ def main(argv):
     # X_train_filenames, X_val_filenames, Y_train, Y_val = train_test_split(
         # filenames_shuffled, labels_one_hot_shuffled, test_size=0.05, random_state=1)
 
-
     # trasformazione delle liste con i filenames in numpy array
     X_test_filenames = np.array(X_test_filenames)
 
@@ -109,6 +108,8 @@ def main(argv):
                                    network_model=NETWORK_MODEL_TO_LOAD,
                                    win_len=WIN_LEN, win_step=WIN_STEP,
                                    normalize=True, mode='test')
+
+    ####################### ATTENZIONE: VALUTARE LA NORMALIZZAZIONE PERCHE' VIENE FATTA IN MODO DIFFERENTE TRA TRAIN/TEST...
 
     print('Done')
     print()

@@ -33,7 +33,7 @@ MODEL_VERSION_TO_TRAIN = 0.1
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
 NETWORK_MODEL_TO_LOAD = 'autoencoder1'
 
-MODEL_VERSION_TO_LOAD = 0.0
+MODEL_VERSION_TO_LOAD = 0.1
 
 
 if RUN_ON_CLUSTER:
@@ -235,16 +235,18 @@ def main(argv):
 
 
         # save a plot of the loss/mse trend during the training phase
-        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, 'MSE')
+
+        # saving a picture of the model used
+        tf.keras.utils.plot_model(rnn_autoencoder,
+                                  to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
+                                      MODEL_VERSION_TO_TRAIN) + '.png')
 
         rnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
         print('Model saved to disk')
         print()
 
         rnn_autoencoder.summary()
-
-        # Showing and saving a picture of the model used
-        tf.keras.utils.plot_model(rnn_autoencoder, to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.png')
 
         print()
         print("Descrizione del modello per il transfer learning dopo il training dell'autoencoder")
@@ -313,8 +315,13 @@ def main(argv):
 
 
         # # save a plot of the loss/mse trend during the training phase
-        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, 'Categorical Cross-Entropy')
         save_training_accuracy_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+
+        # Showing and saving a picture of the model used
+        tf.keras.utils.plot_model(encoder_mlp,
+                                  to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
+                                      MODEL_VERSION_TO_TRAIN) + '.png')
 
         encoder_mlp.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
         print('Model saved to disk')

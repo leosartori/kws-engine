@@ -399,16 +399,16 @@ def split_dataset_from_list(filename_list, labels_list, validation_file, testing
 
 
 
-def save_training_loss_trend_plot(history, network_model, model_version):
+def save_training_loss_trend_plot(history, network_model, model_version, loss_type):
 
     # list all data in history
     # print(history.history.keys())
 
     # plot loss (mse)
-    plt.title('Loss Function - MSE')
+    plt.title('Loss Function - ' + loss_type)
     plt.plot(history.history['loss'], color='blue', label='train')
     plt.plot(history.history['val_loss'], color='orange', label='val')
-    plt.ylabel('MSE')
+    plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper right')
 
@@ -441,8 +441,8 @@ def printInfo(network_model_to_train, model_version_to_train, num_features, batc
 
     print()
     print('TRAINING INFORMATION:')
-    print('Network model: ' + network_model_to_train)
-    print('Model version: ' + str(model_version_to_train))
+    print('Network model to train: ' + network_model_to_train)
+    print('Model version to train: ' + str(model_version_to_train))
     print('Number of Mel features: ' + str(num_features))
     print('Spectrograms timesteps: ' + str(max_timesteps_stectrograms))
     print('Time length of each frame: ' + str(win_len))
