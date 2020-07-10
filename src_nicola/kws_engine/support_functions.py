@@ -7,8 +7,10 @@ from tensorflow.keras.models import Model, Sequential
 import matplotlib.pyplot as plt
 
 # Mel features library
-from mfcc_base import mfcc
+from mfcc_base import mfcc, fbank, logfbank
 import scipy.io.wavfile as wav
+
+from spectral_audeep import *
 
 # import re
 # import hashlib
@@ -214,7 +216,47 @@ def calculate_dec_output(enc_output):
 #     return nfft
 
 
-def compute_spectrogram(filename, num_features, win_len, win_step):
+
+
+# def compute_spectrogram(filename, num_features, win_len, win_step, feature_type):
+#
+#     filename = filename.decode()
+#     rate, signal = wav.read(str(filename))
+#
+#     # siccome sappiamo che la durata massima di un file audio è un secondo (cioè max(length(signal)) = rate)
+#     # tengo al massimo un secondo
+#     signal = signal[0:rate]
+#     # faccio padding con zeri fino a 1 secondo se l'audio è più corto
+#     signal_padded = np.pad(signal, (0, rate - signal.shape[0]))
+#
+#     # print('Rate: ' + str(rate))
+#     # print('Signal length: ' + str(len(sig)))
+#
+#     mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
+#                      nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
+#                      lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
+#
+#     # print(mfcc_feat.shape)
+#
+#     # TODO: normalizzare i valori degli spettrogrammi come nel paper Seq-to-Seq (par 2.1)? Ora sono circa in [-100, 100]
+#     # domanda: da paper non si capisce bene (o almeno io non capisco bene) come venga fatta quella normalizzazione tra -1 e -1
+#     # cioè non capisco se venga fatta individualmente per ogni spettrogramma oppure se venga fatta sul tensore contato come un insieme
+#     # a questo punto proverei a lasciare la normalizzazione fatta con la funzione di tensorflow,
+#     # anche se non penso proprio che normalizzi tra -1 e 1
+#
+#     # faccio padding a
+#     # spectr = np.zeros((mfcc_feat.shape[0], num_filt), dtype='float32')
+#     # spectr[:, :] = mfcc_feat
+#     # return spectr
+#
+#     # spectr_pad[:,:] = mfcc_feat
+#
+#     return mfcc_features.astype(dtype='float32')
+
+
+
+
+def compute_spectrogram(filename, num_features, win_len, win_step, feature_type):
 
     filename = filename.decode()
     rate, signal = wav.read(str(filename))
@@ -228,26 +270,46 @@ def compute_spectrogram(filename, num_features, win_len, win_step):
     # print('Rate: ' + str(rate))
     # print('Signal length: ' + str(len(sig)))
 
-    mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
-                     nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
-                     lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
 
-    # print(mfcc_feat.shape)
+    if feature_type.decode() == 'cepstral':
 
-    # TODO: normalizzare i valori degli spettrogrammi come nel paper Seq-to-Seq (par 2.1)? Ora sono circa in [-100, 100]
-    # domanda: da paper non si capisce bene (o almeno io non capisco bene) come venga fatta quella normalizzazione tra -1 e -1
-    # cioè non capisco se venga fatta individualmente per ogni spettrogramma oppure se venga fatta sul tensore contato come un insieme
-    # a questo punto proverei a lasciare la normalizzazione fatta con la funzione di tensorflow,
-    # anche se non penso proprio che normalizzi tra -1 e 1
+        mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
+                         nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
+                         lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
 
-    # faccio padding a
-    # spectr = np.zeros((mfcc_feat.shape[0], num_filt), dtype='float32')
-    # spectr[:, :] = mfcc_feat
-    # return spectr
+        return (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
 
-    # spectr_pad[:,:] = mfcc_feat
 
-    return mfcc_features.astype(dtype='float32')
+
+    if feature_type.decode() == 'mel-spectrogram':
+
+        mel_spectrogram, _ = fbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
+                         nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
+                         lowfreq=0, highfreq=None, preemph=0.97)
+
+        return ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+
+
+
+    if feature_type.decode() == 'log-mel-spectrogram':
+
+        mel_spectrogram = logfbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
+                                      nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
+                                      lowfreq=0, highfreq=None, preemph=0.97)
+
+        return (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
+
+
+
+    if feature_type.decode() == 'mel-spectrogram-Audeep':
+
+        _, _, p_s = power_spectrum(signal, rate, int(rate * win_len), int(rate * win_step))
+        mel_spectrogram = mel_spectrum(p_s, None, rate, int(rate * win_len), num_features).astype(dtype='float32')
+        print(mel_spectrogram.shape)
+
+        return ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+
+
 
 
 
@@ -257,8 +319,8 @@ def normalize_tensor(x, axes=[0], epsilon=1e-8):
     return x_normed
 
 
-def create_dataset(filenames, labels, num_features, batch_size, shuffle, input_size, network_model,
-                   win_len, win_step, normalize=False, cache_file=None, mode='train'):
+def create_dataset(filenames, labels, num_features, batch_size, input_size, network_model,
+                   win_len, win_step, feature_type='log-mel-spectrogram', shuffle=False, tensor_normalization=False, cache_file=None, mode='train'):
     """
     Crea un oggetto tf.data.Dataset da usare come input per un modello di classificazione o autoencoder
 
@@ -277,14 +339,15 @@ def create_dataset(filenames, labels, num_features, batch_size, shuffle, input_s
     input_dataset = tf.data.Dataset.from_tensor_slices(filenames)
     target_dataset = tf.data.Dataset.from_tensor_slices(labels)
 
+
     # Mappa la funzione compute_spectrogram
     to_spectrogram = lambda filename: (tf.ensure_shape(tf.numpy_function(compute_spectrogram,
-                                                                    [filename, num_features, win_len, win_step],
+                                                                    [filename, num_features, win_len, win_step, feature_type],
                                                                     tf.float32), input_size))
 
     dataset = input_dataset.map(to_spectrogram, num_parallel_calls=os.cpu_count())
 
-    if normalize:
+    if tensor_normalization:
         train_dataset = dataset.map(normalize_tensor, num_parallel_calls=os.cpu_count())
     else:
         train_dataset = dataset

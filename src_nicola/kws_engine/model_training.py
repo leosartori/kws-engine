@@ -9,6 +9,8 @@ from IPython.display import Image
 from timeit import default_timer as timer
 from tensorflow.keras.models import load_model
 
+from spectral_audeep import *
+
 
 # LEO: codice per disattivare la GPU, il mio pc sembra avere un problema con i driver e quindi uso CPU
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -20,14 +22,14 @@ from tensorflow.keras.models import load_model
 # ---------------------------- PARAMETRI DI INPUT ----------------------------
 
 # flag per selezionare i parametri opportuni per runnare il codice sul cluster DEI
-RUN_ON_CLUSTER = True
+RUN_ON_CLUSTER = False
 
 # select the model to train
 # NETWORK_MODEL_TO_TRAIN = 'debug_classifier'
 NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
 
-MODEL_VERSION_TO_TRAIN = 0.1
+MODEL_VERSION_TO_TRAIN = 0.2
 
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
@@ -52,7 +54,8 @@ else:
     VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 
 
-NUM_FEATURES = 40 # number of features per sample (Mel), 320 nel paper degli autoencoder, io proverei 40 nel nostro caso
+NUM_FEATURES = 40 # number of features per sample, 320 nel paper degli autoencoder, io proverei 40 nel nostro caso
+
 NUM_RNN_UNITS = 256 # GRU units in encoder and decoder
 NUM_MLP_UNITS = 150
 
@@ -66,6 +69,11 @@ NUM_EPOCH = 25
 MAX_TIMESTEPS_SPECTROGRAMS = 98 # 1sample + (1sec - 0.03sec)/0.01sec = 98 samples
 WIN_LEN = 0.03
 WIN_STEP = 0.01
+
+FEATURES_TYPES= ['cepstral', 'mel-spectrogram', 'log-mel-spectrogram', 'mel-spectrogram-Audeep']
+FEATURES_CHOICE = 2
+# each features will be automatically normalized between -1 and 1 in the function compute_spectrogram()
+# 'mel-spectrogram-Audeep' cannot be selected because I don't undestand why the time length of the output is half
 
 
 
@@ -137,16 +145,36 @@ def main(argv):
     print('Done')
     print()
 
-    # # per selezionare meno file e fare qualche prova di training in locale
-    # n_train = 500
-    # n_val = 250
-    # n_test = 200
-    # X_train_filenames = X_train_filenames[0:n_train]
-    # X_val_filenames = X_val_filenames[0:n_val]
-    # X_test_filenames = X_test_filenames[0:n_test]
-    # Y_train = Y_train[0:n_train]
-    # Y_val = Y_val[0:n_val]
-    # Y_test = Y_test[0:n_test]
+    # per selezionare meno file e fare qualche prova di training in locale
+    n_train = 500
+    n_val = 100
+    n_test = 200
+    X_train_filenames = X_train_filenames[0:n_train]
+    X_val_filenames = X_val_filenames[0:n_val]
+    X_test_filenames = X_test_filenames[0:n_test]
+    Y_train = Y_train[0:n_train]
+    Y_val = Y_val[0:n_val]
+    Y_test = Y_test[0:n_test]
+
+    # # questa parte serviva a verificare la correttezza della normalizzazione, e stampava uno spettrogramma (ruotato)
+    # maxs = []
+    # mins = []
+    #
+    # for file in X_train_filenames:
+    #
+    #     sp = compute_spectrogram(file, NUM_FEATURES, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE])
+    #
+    #     maxs.append(np.amax(sp))
+    #     mins.append(np.amin(sp))
+    #
+    # print(np.amax(np.array(maxs)))
+    # print(np.amin(np.array(mins)))
+    # print(file)
+    # plt.pcolormesh(np.rot90(sp, k=3)) # ruoto a destra di 90 gradi, cioè a sinistra di 270 gradi
+    # # plt.pcolormesh(sp)
+    # plt.show()
+    #
+    # return
 
 
     # steps per epoca in modo da analizzare tutto il dataset
@@ -188,17 +216,17 @@ def main(argv):
         # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
 
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, shuffle=False,
+        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
-                                       win_len=WIN_LEN, win_step=WIN_STEP,
-                                       normalize=True, cache_file='train_cache', mode='train')
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                       tensor_normalization=False, cache_file='train_cache', mode='train')
 
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=False,
+        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
-                                     win_len=WIN_LEN, win_step=WIN_STEP,
-                                     normalize=True, cache_file='val_cache', mode='train')
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                     tensor_normalization=False, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
@@ -263,17 +291,17 @@ def main(argv):
         # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
 
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, shuffle=False,
+        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
-                                       win_len=WIN_LEN, win_step=WIN_STEP,
-                                       normalize=True, cache_file='train_cache', mode='train')
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                       tensor_normalization=False, cache_file='train_cache', mode='train')
 
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, shuffle=False,
+        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
-                                     win_len=WIN_LEN, win_step=WIN_STEP,
-                                     normalize=True, cache_file='val_cache', mode='train')
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                     tensor_normalization=False, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
