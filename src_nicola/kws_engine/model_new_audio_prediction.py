@@ -24,6 +24,7 @@ RUN_ON_CLUSTER = False
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
 NETWORK_MODEL_TO_LOAD = 'encoder_mlp_classifier1'
+# NETWORK_MODEL_TO_LOAD = 'cnn_model1'
 
 MODEL_VERSION_TO_LOAD = 0.1
 
@@ -67,8 +68,15 @@ def main(argv):
     print('Loading the new audio file...')
     print()
 
+    # default input_shape of the encoder_mlp_classifier
+    input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES)
+
+    if NETWORK_MODEL_TO_LOAD == 'cnn_model1':
+        input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1)
+
+
     real_label = NEW_AUDIO_FILENAME.split('_')[0]
-    input_spectrogram = compute_spectrogram(str(NEW_AUDIO_FILES_DIR + '/' + NEW_AUDIO_FILENAME + '.wav'), NUM_FEATURES, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE])
+    input_spectrogram = compute_spectrogram(str(NEW_AUDIO_FILES_DIR + '/' + NEW_AUDIO_FILENAME + '.wav'), input_shape, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE])
 
     labels_counter = 0
     labels_dict = {}
@@ -117,8 +125,7 @@ def main(argv):
 
 
 
-
-def compute_spectrogram(filename, num_features, win_len, win_step, feature_type):
+def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
 
     rate, signal = wav.read(str(filename))
 
@@ -131,6 +138,9 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
     # print('Rate: ' + str(rate))
     # print('Signal length: ' + str(len(sig)))
 
+    # output = np.zeros(input_size)
+
+    num_features = input_size[1]
 
     if feature_type == 'cepstral':
 
@@ -138,7 +148,7 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
                          nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
                          lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
 
-        return (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
+        output = (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
 
 
 
@@ -148,7 +158,7 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
                          nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
                          lowfreq=0, highfreq=None, preemph=0.97)
 
-        return ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+        output = ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
 
 
 
@@ -158,7 +168,7 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
                                       nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
                                       lowfreq=0, highfreq=None, preemph=0.97)
 
-        return (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
+        output = (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
 
 
 
@@ -168,9 +178,15 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
         mel_spectrogram = mel_spectrum(p_s, None, rate, int(rate * win_len), num_features).astype(dtype='float32')
         print(mel_spectrogram.shape)
 
-        return ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+        output = ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
 
 
+    # this means that we are using a cnn model, because it expects a 3D input
+    if len(input_size == 3):
+        output = output.reshape(input_size)
+
+
+    return output
 
 
 

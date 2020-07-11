@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, Dropout
+from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, Dropout, Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten
 from tensorflow.keras.models import Model, Sequential
 import matplotlib.pyplot as plt
 
@@ -42,7 +42,38 @@ from spectral_audeep import *
 #     return model
 
 
-def rnn_autoencoder_model(num_features, num_units):
+def cnn_model(num_classes, input_size):
+
+    model = Sequential()
+    model.add(Conv2D(32, (3, 3), padding='same', input_shape=input_size))
+    model.add(Activation('relu'))
+    model.add(Conv2D(32, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.3))
+
+    model.add(Conv2D(64, (3, 3), padding='same'))
+    model.add(Activation('relu'))
+    model.add(Conv2D(64, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.3))
+
+    model.add(Flatten())
+    model.add(Dense(256))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(128))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(num_classes))
+    model.add(Activation('softmax'))
+
+    return model
+
+
+
+def rnn_autoencoder_model(input_size, num_units):
     """
     Modello di autoencoder RNN, codifica e decodifica gli spettogrammi cercando di ricostruirli.
 
@@ -55,7 +86,7 @@ def rnn_autoencoder_model(num_features, num_units):
 
     # encoder
     # Define an input sequence and process it.
-    encoder_inputs = Input(shape=(None, num_features))
+    encoder_inputs = Input(shape=input_size)
 
     # come descritto nel paper i layer dell'encoder hanno stato iniziale uguale a zero. Dovrebbe essere ok di default
     # documentazione tensorflow GRU: initial_state: List of initial state tensors to be passed to the first call of the cell
@@ -80,7 +111,7 @@ def rnn_autoencoder_model(num_features, num_units):
     # init_dec_1 = (encoder_state_2, encoder_state_2)
     # init_dec_2 = (encoder_state_1, encoder_state_1)
 
-    decoder_inputs = Input(shape=(None, num_features))
+    decoder_inputs = Input(shape=input_size)
 
     # # N_l = 2 (due livelli)
     # decoder_outputs_1 = Bidirectional(
@@ -97,7 +128,7 @@ def rnn_autoencoder_model(num_features, num_units):
     # dal paper: The weights of this output projection are shared across time steps
     # quindi così dovrebbe essere ok, mettendo TimeDistributed in teoria ottengo sharing nel tempo dei pesi
     # nel paper si parla di linear projection come layer finale...
-    final_output = Dense(num_features, activation=None)(decoder_outputs_2)
+    final_output = Dense(input_size[1], activation=None)(decoder_outputs_2)
 
     seq_2_seq_rnn_autoencoder = Model((encoder_inputs, decoder_inputs), final_output, name='rnn_autoencoder_model')
 
@@ -105,7 +136,7 @@ def rnn_autoencoder_model(num_features, num_units):
 
 
 
-def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, num_features):
+def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size):
 
     # transfer learning: https://keras.io/guides/transfer_learning/
 
@@ -121,7 +152,7 @@ def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, num_features)
     # print(rnn_autoencoder.layers[2].output)
     # print(rnn_autoencoder.layers[3].output)
 
-    encoder_inputs = Input(shape=(None, num_features))
+    encoder_inputs = Input(shape=input_size)
     # encoder_inputs = rnn_autoencoder.layers[0](input)
     # encoder_rnn_layer1 = rnn_autoencoder.layers[1](encoder_inputs.output)
     encoder_rnn_layer1 = rnn_autoencoder.layers[1](encoder_inputs)
@@ -213,7 +244,7 @@ def calculate_dec_output(enc_output):
 
 
 
-def compute_spectrogram(filename, num_features, win_len, win_step, feature_type):
+def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
 
     filename = filename.decode()
     rate, signal = wav.read(str(filename))
@@ -227,6 +258,9 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
     # print('Rate: ' + str(rate))
     # print('Signal length: ' + str(len(sig)))
 
+    # output = np.zeros(input_size)
+
+    num_features = input_size[1]
 
     if feature_type.decode() == 'cepstral':
 
@@ -234,7 +268,7 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
                          nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
                          lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
 
-        return (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
+        output = (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
 
 
 
@@ -244,7 +278,7 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
                          nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
                          lowfreq=0, highfreq=None, preemph=0.97)
 
-        return ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+        output = ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
 
 
 
@@ -254,7 +288,7 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
                                       nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
                                       lowfreq=0, highfreq=None, preemph=0.97)
 
-        return (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
+        output = (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
 
 
 
@@ -264,8 +298,15 @@ def compute_spectrogram(filename, num_features, win_len, win_step, feature_type)
         mel_spectrogram = mel_spectrum(p_s, None, rate, int(rate * win_len), num_features).astype(dtype='float32')
         print(mel_spectrogram.shape)
 
-        return ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+        output = ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
 
+
+    # this means that we are using a cnn model, because it expects a 3D input
+    if len(input_size == 3):
+        output = output.reshape(input_size)
+
+
+    return output
 
 
 
@@ -276,8 +317,9 @@ def normalize_tensor(x, axes=[0], epsilon=1e-8):
     return x_normed
 
 
-def create_dataset(filenames, labels, num_features, batch_size, input_size, network_model,
-                   win_len, win_step, feature_type='log-mel-spectrogram', shuffle=False, tensor_normalization=False, cache_file=None, mode='train'):
+def create_dataset(filenames, labels, batch_size, input_size, network_model,
+                   win_len, win_step, feature_type='log-mel-spectrogram', shuffle=False,
+                   tensor_normalization=False, cache_file=None, mode='train'):
     """
     Crea un oggetto tf.data.Dataset da usare come input per un modello di classificazione o autoencoder
 
@@ -299,7 +341,7 @@ def create_dataset(filenames, labels, num_features, batch_size, input_size, netw
 
     # Mappa la funzione compute_spectrogram
     to_spectrogram = lambda filename: (tf.ensure_shape(tf.numpy_function(compute_spectrogram,
-                                                                    [filename, num_features, win_len, win_step, feature_type],
+                                                                    [filename, input_size, win_len, win_step, feature_type],
                                                                     tf.float32), input_size))
 
     dataset = input_dataset.map(to_spectrogram, num_parallel_calls=os.cpu_count())
@@ -330,7 +372,7 @@ def create_dataset(filenames, labels, num_features, batch_size, input_size, netw
 
 
     # modalità classificazione, il target è la label
-    if network_model == 'debug_classifier' or network_model == 'encoder_mlp_classifier1':
+    if network_model == 'debug_classifier' or network_model == 'encoder_mlp_classifier1' or network_model == 'cnn_model1':
         # come scrivevo sotto, si potrebbe fare qui l'operazione di one hot encoding con qualcosa del tipo
         # dy_valid = tf.data.Dataset.from_tensor_slices(valid_labels).map(lambda z: tf.one_hot(z, 10))
         dataset = tf.data.Dataset.zip((train_dataset, target_dataset))
@@ -341,7 +383,6 @@ def create_dataset(filenames, labels, num_features, batch_size, input_size, netw
     if cache_file:
         dataset = dataset.cache(cache_file)
 
-    # TODO: verificare lungo che asse dei dati viene eseguito lo shuffle -> Nicola: secondo me in automatico è ok, perchè nella doc non si parla mai di asse
     # secondo me funziona però necessita molto tempo... da provare nel cluster
     if shuffle:
         dataset = dataset.shuffle(len(filenames))

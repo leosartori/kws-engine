@@ -24,6 +24,7 @@ RUN_ON_CLUSTER = False
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
 NETWORK_MODEL_TO_LOAD = 'encoder_mlp_classifier1'
+# NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
 
 MODEL_VERSION_TO_LOAD = 0.1
 
@@ -107,10 +108,17 @@ def main(argv):
     # trasformazione delle liste delle labels in numpy array
     Y_test = np.array(Y_test, dtype=int)
 
+    # default input_shape of the encoder_mlp_classifier
+    input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES)
+
+    if NETWORK_MODEL_TO_LOAD == 'cnn_model1':
+        input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1)
+
+
 
     # crea dataset con classe Dataset di TF
-    test_dataset = create_dataset(X_test_filenames, Y_test, NUM_FEATURES, BATCH_SIZE,
-                                   input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
+    test_dataset = create_dataset(X_test_filenames, Y_test, BATCH_SIZE,
+                                   input_size=input_shape,
                                    network_model=NETWORK_MODEL_TO_LOAD,
                                    win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE],
                                    shuffle=False,

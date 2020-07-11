@@ -26,10 +26,11 @@ RUN_ON_CLUSTER = True
 
 # select the model to train
 # NETWORK_MODEL_TO_TRAIN = 'debug_classifier'
-NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
+# NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
+NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
 
-MODEL_VERSION_TO_TRAIN = 0.2
+MODEL_VERSION_TO_TRAIN = 0.1
 
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
@@ -60,8 +61,8 @@ NUM_RNN_UNITS = 256 # GRU units in encoder and decoder
 NUM_MLP_UNITS = 150
 
 LR = 0.001
-LR_DROP_FACTOR = 0.3
-DROP_EVERY = 25
+LR_DROP_FACTOR = 0.7
+DROP_EVERY = 30
 NUM_EPOCH = 100
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
@@ -155,6 +156,9 @@ def main(argv):
     # Y_train = Y_train[0:n_train]
     # Y_val = Y_val[0:n_val]
     # Y_test = Y_test[0:n_test]
+    #
+    # print(X_train_filenames)
+    # print(X_val_filenames)
 
     # # questa parte serviva a verificare la correttezza della normalizzazione, e stampava uno spettrogramma (ruotato)
     # maxs = []
@@ -216,13 +220,13 @@ def main(argv):
         # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
 
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE,
+        train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
                                        tensor_normalization=False, cache_file='train_cache', mode='train')
 
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE,
+        val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
@@ -232,7 +236,7 @@ def main(argv):
 
         # crea e traina il modello con API Keras
         print('Creating the model...')
-        rnn_autoencoder = rnn_autoencoder_model(NUM_FEATURES, NUM_RNN_UNITS)
+        rnn_autoencoder = rnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), num_units=NUM_RNN_UNITS)
 
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
@@ -291,13 +295,13 @@ def main(argv):
         # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
 
         # crea dataset con classe Dataset di TF
-        train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE,
+        train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
                                        tensor_normalization=False, cache_file='train_cache', mode='train')
 
-        val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE,
+        val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
@@ -312,7 +316,7 @@ def main(argv):
         print()
 
         print('Creating the model...')
-        encoder_mlp, encoder = rnn_encoder_mlp_model(rnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES, NUM_FEATURES)
+        encoder_mlp, encoder = rnn_encoder_mlp_model(rnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES))
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
         callbacks = [LearningRateScheduler(schedule, verbose=1)]
@@ -359,6 +363,81 @@ def main(argv):
         encoder.summary()
         print()
         encoder_mlp.summary()
+
+
+
+
+    if NETWORK_MODEL_TO_TRAIN == 'cnn_model1':
+
+        # CREAZIONE E TRAIN DEL MODELLO
+        print('Creating TF dataset...')
+        # per il momento lascio lo shuffle a False perchè ho notato che ci mette un sacco di tempo per farlo (visto in locale, magari nel cluster non è così)
+        # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
+
+        # crea dataset con classe Dataset di TF
+        train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
+                                       input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
+                                       network_model=NETWORK_MODEL_TO_TRAIN,
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+
+        val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
+                                     input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
+                                     network_model=NETWORK_MODEL_TO_TRAIN,
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+        print('Done')
+        print()
+
+        # crea e traina il modello con API Keras
+        print('Creating the model...')
+        cnn = cnn_model(NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1))
+
+        schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
+        callbacks = [LearningRateScheduler(schedule, verbose=1)]
+
+        opt = tf.keras.optimizers.Adam(learning_rate=LR)
+        cnn.compile(optimizer=opt, loss=tf.keras.losses.CategoricalCrossentropy(),
+                                metrics=["accuracy"])
+        print('Done')
+        print()
+
+
+        print('Training the model:')
+        start_time = timer()
+
+        history = cnn.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
+                                      validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks,
+                                      verbose=VERBOSE_FIT)
+
+        end_time = timer()
+        load_time = end_time - start_time
+
+        print()
+        print('Done')
+        print()
+        printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
+                  WIN_LEN, WIN_STEP, NUM_EPOCH)
+        print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
+        print()
+
+
+        # # save a plot of the loss/mse trend during the training phase
+        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, 'Categorical Cross-Entropy')
+        save_training_accuracy_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+
+        # Showing and saving a picture of the model used
+        tf.keras.utils.plot_model(cnn,
+                                  to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
+                                      MODEL_VERSION_TO_TRAIN) + '.png')
+
+        cnn.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
+        print('Model saved to disk')
+        print()
+
+        print()
+        cnn.summary()
+        print()
 
 
 
