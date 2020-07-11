@@ -42,6 +42,12 @@ WIN_LEN = 0.03
 WIN_STEP = 0.01
 
 
+FEATURES_TYPES= ['cepstral', 'mel-spectrogram', 'log-mel-spectrogram', 'mel-spectrogram-Audeep']
+FEATURES_CHOICE = 2
+# each features will be automatically normalized between -1 and 1 in the function compute_spectrogram()
+# 'mel-spectrogram-Audeep' cannot be selected because I don't undestand why the time length of the output is half
+
+
 if RUN_ON_CLUSTER:
     TRAIN_DIR = '/nfsd/hda/DATASETS/Project_1'
 else:
@@ -61,22 +67,8 @@ def main(argv):
     print('Loading the new audio file...')
     print()
 
-
     real_label = NEW_AUDIO_FILENAME.split('_')[0]
-
-    rate, signal = wav.read(str(NEW_AUDIO_FILES_DIR + '/' + NEW_AUDIO_FILENAME + '.wav'))
-
-    signal = signal[0:rate]
-    # faccio padding con zeri fino a 1 secondo se l'audio è più corto
-    signal_padded = np.pad(signal, (0, rate - signal.shape[0]))
-
-    mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=WIN_LEN, winstep=WIN_STEP, numcep=NUM_FEATURES,
-                     nfilt=NUM_FEATURES, nfft=512, #calculate_nfft(rate, win_len),
-                     lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True).astype(dtype='float32')
-
-    mfcc_features = mfcc_features.reshape(1, mfcc_features.shape[0], mfcc_features.shape[1])
-    # print(mfcc_features.shape)
-
+    input_spectrogram = compute_spectrogram(str(NEW_AUDIO_FILES_DIR + '/' + NEW_AUDIO_FILENAME + '.wav'), NUM_FEATURES, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE])
 
     labels_counter = 0
     labels_dict = {}
@@ -110,7 +102,7 @@ def main(argv):
 
     print('Making prediction on the new audio file:')
 
-    prediction = classification_model.predict(mfcc_features)[0]
+    prediction = classification_model.predict(input_spectrogram)[0]
     predicted_label = labels_dict[np.argmax(prediction)]
     print('Real label: ' + real_label + '   --->   Predicted label: ' + predicted_label)
     print()
@@ -119,6 +111,66 @@ def main(argv):
         print('Correct audio file classification!')
     else:
         print('Incorrect audio file classification!')
+
+
+
+
+
+
+
+def compute_spectrogram(filename, num_features, win_len, win_step, feature_type):
+
+    rate, signal = wav.read(str(filename))
+
+    # siccome sappiamo che la durata massima di un file audio è un secondo (cioè max(length(signal)) = rate)
+    # tengo al massimo un secondo
+    signal = signal[0:rate]
+    # faccio padding con zeri fino a 1 secondo se l'audio è più corto
+    signal_padded = np.pad(signal, (0, rate - signal.shape[0]))
+
+    # print('Rate: ' + str(rate))
+    # print('Signal length: ' + str(len(sig)))
+
+
+    if feature_type == 'cepstral':
+
+        mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
+                         nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
+                         lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
+
+        return (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
+
+
+
+    if feature_type == 'mel-spectrogram':
+
+        mel_spectrogram, _ = fbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
+                         nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
+                         lowfreq=0, highfreq=None, preemph=0.97)
+
+        return ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+
+
+
+    if feature_type == 'log-mel-spectrogram':
+
+        mel_spectrogram = logfbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
+                                      nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
+                                      lowfreq=0, highfreq=None, preemph=0.97)
+
+        return (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
+
+
+
+    if feature_type == 'mel-spectrogram-Audeep':
+
+        _, _, p_s = power_spectrum(signal, rate, int(rate * win_len), int(rate * win_step))
+        mel_spectrogram = mel_spectrum(p_s, None, rate, int(rate * win_len), num_features).astype(dtype='float32')
+        print(mel_spectrogram.shape)
+
+        return ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
+
+
 
 
 

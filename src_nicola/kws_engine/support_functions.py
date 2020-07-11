@@ -99,7 +99,7 @@ def rnn_autoencoder_model(num_features, num_units):
     # nel paper si parla di linear projection come layer finale...
     final_output = Dense(num_features, activation=None)(decoder_outputs_2)
 
-    seq_2_seq_rnn_autoencoder = Model((encoder_inputs, decoder_inputs), final_output)
+    seq_2_seq_rnn_autoencoder = Model((encoder_inputs, decoder_inputs), final_output, name='rnn_autoencoder_model')
 
     return seq_2_seq_rnn_autoencoder
 
@@ -108,13 +108,6 @@ def rnn_autoencoder_model(num_features, num_units):
 def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, num_features):
 
     # transfer learning: https://keras.io/guides/transfer_learning/
-
-    # encoder_model = Sequential()
-    # encoder_model.add(rnn_autoencoder.layers[0]) # Input layer
-    # encoder_model.add(rnn_autoencoder.layers[1]) # GRU RNN layer1
-    # encoder_model.add(rnn_autoencoder.layers[2])  # GRU RNN layer2
-    # encoder_model.add(rnn_autoencoder.layers[3])  # State Concatenation layer
-    # encoder_model.add(rnn_autoencoder.layers[5])  # State Dense layer
 
     # print("Descrizione del modello per il fine tuning dopo il training dell'autoencoder")
     #
@@ -144,14 +137,14 @@ def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, num_features)
 
     encoder_dense = rnn_autoencoder.layers[5](encoder_states_concatenation)
 
-    encoder_model = Model(encoder_inputs, encoder_dense)
+    encoder_model = Model(encoder_inputs, encoder_dense, name='rnn_encoder_model')
 
     encoder_model.trainable = False
 
 
     dropout_probability = 0.4 # as in the paper
 
-    classification_model = Sequential()
+    classification_model = Sequential(name='mlp_classifier')
     classification_model.add(encoder_model)
     classification_model.add(Dropout(dropout_probability))
     classification_model.add(Dense(num_units, activation='relu'))
@@ -216,42 +209,6 @@ def calculate_dec_output(enc_output):
 #     return nfft
 
 
-
-
-# def compute_spectrogram(filename, num_features, win_len, win_step, feature_type):
-#
-#     filename = filename.decode()
-#     rate, signal = wav.read(str(filename))
-#
-#     # siccome sappiamo che la durata massima di un file audio è un secondo (cioè max(length(signal)) = rate)
-#     # tengo al massimo un secondo
-#     signal = signal[0:rate]
-#     # faccio padding con zeri fino a 1 secondo se l'audio è più corto
-#     signal_padded = np.pad(signal, (0, rate - signal.shape[0]))
-#
-#     # print('Rate: ' + str(rate))
-#     # print('Signal length: ' + str(len(sig)))
-#
-#     mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
-#                      nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
-#                      lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
-#
-#     # print(mfcc_feat.shape)
-#
-#     # TODO: normalizzare i valori degli spettrogrammi come nel paper Seq-to-Seq (par 2.1)? Ora sono circa in [-100, 100]
-#     # domanda: da paper non si capisce bene (o almeno io non capisco bene) come venga fatta quella normalizzazione tra -1 e -1
-#     # cioè non capisco se venga fatta individualmente per ogni spettrogramma oppure se venga fatta sul tensore contato come un insieme
-#     # a questo punto proverei a lasciare la normalizzazione fatta con la funzione di tensorflow,
-#     # anche se non penso proprio che normalizzi tra -1 e 1
-#
-#     # faccio padding a
-#     # spectr = np.zeros((mfcc_feat.shape[0], num_filt), dtype='float32')
-#     # spectr[:, :] = mfcc_feat
-#     # return spectr
-#
-#     # spectr_pad[:,:] = mfcc_feat
-#
-#     return mfcc_features.astype(dtype='float32')
 
 
 

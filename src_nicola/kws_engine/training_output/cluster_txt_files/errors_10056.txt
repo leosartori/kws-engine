@@ -1,0 +1,36 @@
+2020-07-10 21:29:00.634093: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcuda.so.1
+2020-07-10 21:29:01.371560: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1561] Found device 0 with properties: 
+pciBusID: 0000:45:00.0 name: Quadro P2000 computeCapability: 6.1
+coreClock: 1.4805GHz coreCount: 8 deviceMemorySize: 4.94GiB deviceMemoryBandwidth: 130.53GiB/s
+2020-07-10 21:29:01.372919: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcudart.so.10.1
+2020-07-10 21:29:01.376067: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcublas.so.10
+2020-07-10 21:29:01.378916: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcufft.so.10
+2020-07-10 21:29:01.380114: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcurand.so.10
+2020-07-10 21:29:01.383235: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcusolver.so.10
+2020-07-10 21:29:01.385009: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcusparse.so.10
+2020-07-10 21:29:01.391377: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcudnn.so.7
+2020-07-10 21:29:01.392572: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1703] Adding visible gpu devices: 0
+2020-07-10 21:29:01.392964: I tensorflow/core/platform/cpu_feature_guard.cc:143] Your CPU supports instructions that this TensorFlow binary was not compiled to use: SSE4.1 SSE4.2 AVX AVX2 AVX512F FMA
+2020-07-10 21:29:01.404614: I tensorflow/core/platform/profile_utils/cpu_utils.cc:102] CPU Frequency: 2200000000 Hz
+2020-07-10 21:29:01.404853: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x55a0a8ac4090 initialized for platform Host (this does not guarantee that XLA will be used). Devices:
+2020-07-10 21:29:01.404867: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): Host, Default Version
+2020-07-10 21:29:01.405657: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1561] Found device 0 with properties: 
+pciBusID: 0000:45:00.0 name: Quadro P2000 computeCapability: 6.1
+coreClock: 1.4805GHz coreCount: 8 deviceMemorySize: 4.94GiB deviceMemoryBandwidth: 130.53GiB/s
+2020-07-10 21:29:01.405731: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcudart.so.10.1
+2020-07-10 21:29:01.405745: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcublas.so.10
+2020-07-10 21:29:01.405757: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcufft.so.10
+2020-07-10 21:29:01.405769: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcurand.so.10
+2020-07-10 21:29:01.405780: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcusolver.so.10
+2020-07-10 21:29:01.405793: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcusparse.so.10
+2020-07-10 21:29:01.405805: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcudnn.so.7
+2020-07-10 21:29:01.406708: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1703] Adding visible gpu devices: 0
+2020-07-10 21:29:01.406800: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcudart.so.10.1
+2020-07-10 21:29:01.498850: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1102] Device interconnect StreamExecutor with strength 1 edge matrix:
+2020-07-10 21:29:01.498885: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1108]      0 
+2020-07-10 21:29:01.498890: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1121] 0:   N 
+2020-07-10 21:29:01.500085: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1247] Created TensorFlow device (/job:localhost/replica:0/task:0/device:GPU:0 with 4703 MB memory) -> physical GPU (device: 0, name: Quadro P2000, pci bus id: 0000:45:00.0, compute capability: 6.1)
+2020-07-10 21:29:01.502148: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x55a0aa800580 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+2020-07-10 21:29:01.502165: I tensorflow/compiler/xla/service/service.cc:176]   StreamExecutor device (0): Quadro P2000, Compute Capability 6.1
+2020-07-10 21:29:09.495634: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcublas.so.10
+2020-07-10 21:29:12.792358: I tensorflow/stream_executor/platform/default/dso_loader.cc:44] Successfully opened dynamic library libcudnn.so.7

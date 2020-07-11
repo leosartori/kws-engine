@@ -1,0 +1,24 @@
+Comandi utili:
+
+da locale verso il cluster: scp kws_engine\* schiavonni@login.dei.unipd.it:/nfsd/hda/schiavonni/kws_engine
+dal cluster verso il locale: scp schiavonni@login.dei.unipd.it:/nfsd/hda/schiavonni/kws_engine/training_output/models/* .
+dal cluster verso il locale: scp schiavonni@login.dei.unipd.it:/nfsd/hda/schiavonni/kws_engine/training_output/images/* .
+dal cluster verso il locale: scp schiavonni@login.dei.unipd.it:/nfsd/hda/schiavonni/kws_engine/output_xxxx.txt .
+dal cluster verso il locale: scp schiavonni@login.dei.unipd.it:/nfsd/hda/schiavonni/kws_engine/errors_xxxx.txt .
+
+
+in questo modo nel cluster vengono passati solo i file, quindi creare a mano le cartelle per gli output!
+mkdir training_output
+cd training_output
+mkdir models
+mkdir images
+
+
+
+se serve (nel cluster): doc2unix schiavonni_job.slurm
+
+sbatch schiavonni schiavonni_job.slurm
+
+squeue -u schiavonni
+
+scancel JOB_ID

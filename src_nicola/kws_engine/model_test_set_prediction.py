@@ -55,6 +55,11 @@ WIN_LEN = 0.03
 WIN_STEP = 0.01
 
 
+FEATURES_TYPES= ['cepstral', 'mel-spectrogram', 'log-mel-spectrogram', 'mel-spectrogram-Audeep']
+FEATURES_CHOICE = 2
+# each features will be automatically normalized between -1 and 1 in the function compute_spectrogram()
+# 'mel-spectrogram-Audeep' cannot be selected because I don't undestand why the time length of the output is half
+
 
 # ----------------------------  MAIN --------------------------
 
@@ -102,14 +107,15 @@ def main(argv):
     # trasformazione delle liste delle labels in numpy array
     Y_test = np.array(Y_test, dtype=int)
 
+
     # crea dataset con classe Dataset di TF
-    test_dataset = create_dataset(X_test_filenames, Y_test, NUM_FEATURES, BATCH_SIZE, shuffle=False,
+    test_dataset = create_dataset(X_test_filenames, Y_test, NUM_FEATURES, BATCH_SIZE,
                                    input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                    network_model=NETWORK_MODEL_TO_LOAD,
-                                   win_len=WIN_LEN, win_step=WIN_STEP,
-                                   normalize=True, mode='test')
+                                   win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE],
+                                   shuffle=False,
+                                   tensor_normalization=False, cache_file='train_cache', mode='test')
 
-    ####################### ATTENZIONE: VALUTARE LA NORMALIZZAZIONE PERCHE' VIENE FATTA IN MODO DIFFERENTE TRA TRAIN/TEST...
 
     print('Done')
     print()
