@@ -19,53 +19,40 @@ from spectral_audeep import *
 
 # ----------------------------  FUNZIONI DI SUPPORTO ------------------------------
 
+def cnn_model(num_classes, input_size, enable_dropout=True):
 
-# def debug_classifier_model(num_tokens, num_units, num_labels):
-#     """
-#     Modello di un classificatore RNN per il debug, classifica gli audio nell rispettiva classe.
-#
-#     :param num_tokens:
-#     :param num_units:
-#     :return:
-#     """
-#
-#     # encoder
-#     # Define an input sequence and process it.
-#     encoder_inputs = Input(shape=(None, num_tokens))
-#
-#     # l'input è in forma [batch, timesteps, feature]
-#     encoder_outputs, encoder_state = GRU(num_units, return_state=True)(encoder_inputs)
-#
-#     fin_output = Dense(num_labels)(encoder_outputs)
-#     model = Model(encoder_inputs, fin_output)
-#
-#     return model
+    if enable_dropout:
+        dropout_probability1 = 0.3
+        dropout_probability2 = 0.5
+        dropout_probability3 = 0.4
+    else:
+        dropout_probability1 = 0.0
+        dropout_probability2 = 0.0
+        dropout_probability3 = 0.0
 
 
-def cnn_model(num_classes, input_size):
-
-    model = Sequential()
+    model = Sequential(name='CNN_model')
     model.add(Conv2D(32, (3, 3), padding='same', input_shape=input_size))
     model.add(Activation('relu'))
     model.add(Conv2D(32, (3, 3)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.3))
+    model.add(Dropout(dropout_probability1))
 
     model.add(Conv2D(64, (3, 3), padding='same'))
     model.add(Activation('relu'))
     model.add(Conv2D(64, (3, 3)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.3))
+    model.add(Dropout(dropout_probability1))
 
     model.add(Flatten())
     model.add(Dense(256))
     model.add(Activation('relu'))
-    model.add(Dropout(0.5))
+    model.add(Dropout(dropout_probability2))
     model.add(Dense(128))
     model.add(Activation('relu'))
-    model.add(Dropout(0.4))
+    model.add(Dropout(dropout_probability3))
     model.add(Dense(num_classes))
     model.add(Activation('softmax'))
 
@@ -73,7 +60,7 @@ def cnn_model(num_classes, input_size):
 
 
 
-def rnn_autoencoder_model(input_size, num_units):
+def rnn_autoencoder_model(input_size, num_units, enable_dropout=True):
     """
     Modello di autoencoder RNN, codifica e decodifica gli spettogrammi cercando di ricostruirli.
 
@@ -82,7 +69,10 @@ def rnn_autoencoder_model(input_size, num_units):
     :return:
     """
 
-    GRU_dropout_probability = 0.2 # as in the paper
+    if enable_dropout:
+        GRU_dropout_probability = 0.2 # as in the paper
+    else:
+        GRU_dropout_probability = 0.0
 
     # encoder
     # Define an input sequence and process it.
@@ -100,12 +90,29 @@ def rnn_autoencoder_model(input_size, num_units):
     encoder_states_concatenated = tf.concat(values=[encoder_state_1, encoder_state_2], axis=1)
     # print(encoder_states_concatenated.shape)
 
-    # # Dense Layer
-    # encoder_state_1 = Dense(units=num_units, activation='relu')(encoder_state_1)
-    # encoder_state_2 = Dense(units=num_units, activation='relu')(encoder_state_2)
-    decoder_init_state = Dense(units=num_units, activation='tanh')(encoder_states_concatenated)
-    decoder_init_state_list = [decoder_init_state, decoder_init_state]
+    # 1
+    # decoder_init_state = Dense(units=num_units, activation='tanh')(encoder_states_concatenated)
+    # decoder_init_state_list = [decoder_init_state, decoder_init_state]
 
+    # print(decoder_init_state)
+    # print(type(decoder_init_state))
+    # print(decoder_init_state.shape)
+
+    # 2
+    decoder_init_state = Dense(units=2 * num_units, activation='tanh')(encoder_states_concatenated)
+    decoder_init_state_layer1, decoder_init_state_layer2 = tf.split(decoder_init_state, num_or_size_splits=2, axis=1)
+    decoder_init_state_list_layer1 = [decoder_init_state_layer1, decoder_init_state_layer1]
+    decoder_init_state_list_layer2 = [decoder_init_state_layer2, decoder_init_state_layer2]
+
+    # 3
+    # decoder_init_state1 = Dense(units=num_units, activation='tanh')(encoder_states_concatenated)
+    # decoder_init_state2 = Dense(units=num_units, activation='tanh')(encoder_states_concatenated)
+    # decoder_init_state_list = [decoder_init_state1, decoder_init_state2]
+
+    # 4
+    # # Dense Layer
+    # encoder_state_1 = Dense(units=num_units, activation='tanh')(encoder_state_1)
+    # encoder_state_2 = Dense(units=num_units, activation='tanh')(encoder_state_2)
 
     # Set up the decoder, using `encoder_states` as initial state.
     # init_dec_1 = (encoder_state_2, encoder_state_2)
@@ -113,22 +120,36 @@ def rnn_autoencoder_model(input_size, num_units):
 
     decoder_inputs = Input(shape=input_size)
 
+    # per versione 1 e 3
+    # # N_l = 2 (due livelli)
+    # decoder_outputs_1 = Bidirectional(
+    #     GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_inputs, initial_state=decoder_init_state_list)
+    # decoder_outputs_2 = Bidirectional(
+    #     GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_outputs_1, initial_state=decoder_init_state_list)
+
+    # per versione 2
+    # N_l = 2 (due livelli)
+    decoder_outputs_1 = Bidirectional(
+        GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_inputs,
+                                                                        initial_state=decoder_init_state_list_layer1)
+    decoder_outputs_2 = Bidirectional(
+        GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_outputs_1,
+                                                                        initial_state=decoder_init_state_list_layer2)
+
+    # per versione 4
     # # N_l = 2 (due livelli)
     # decoder_outputs_1 = Bidirectional(
     #     GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_inputs, initial_state=init_dec_1)
     # decoder_outputs_2 = Bidirectional(
     #     GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_outputs_1, initial_state=init_dec_2)
 
-    # N_l = 2 (due livelli)
-    decoder_outputs_1 = Bidirectional(
-        GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_inputs, initial_state=decoder_init_state_list)
-    decoder_outputs_2 = Bidirectional(
-        GRU(num_units, return_sequences=True, dropout=GRU_dropout_probability))(decoder_outputs_1, initial_state=decoder_init_state_list)
+
 
     # dal paper: The weights of this output projection are shared across time steps
     # quindi così dovrebbe essere ok, mettendo TimeDistributed in teoria ottengo sharing nel tempo dei pesi
     # nel paper si parla di linear projection come layer finale...
-    final_output = Dense(input_size[1], activation=None)(decoder_outputs_2)
+    num_features = input_size[1]
+    final_output = Dense(num_features, activation=None)(decoder_outputs_2)
 
     seq_2_seq_rnn_autoencoder = Model((encoder_inputs, decoder_inputs), final_output, name='rnn_autoencoder_model')
 
@@ -136,7 +157,7 @@ def rnn_autoencoder_model(input_size, num_units):
 
 
 
-def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size):
+def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size, enable_dropout=True):
 
     # transfer learning: https://keras.io/guides/transfer_learning/
 
@@ -172,8 +193,10 @@ def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size):
 
     encoder_model.trainable = False
 
-
-    dropout_probability = 0.4 # as in the paper
+    if enable_dropout:
+        dropout_probability = 0.4 # as in the paper
+    else:
+        dropout_probability = 0.0
 
     classification_model = Sequential(name='mlp_classifier')
     classification_model.add(encoder_model)
@@ -241,13 +264,14 @@ def calculate_dec_output(enc_output):
 
 
 
+def compute_spectrogram(filename, input_size, win_len, win_step, feature_type, caller='no-tensorflow'):
+
+    if caller == 'tensorflow':
+        filename = filename.decode()
+        feature_type = feature_type.decode()
 
 
-
-def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
-
-    filename = filename.decode()
-    rate, signal = wav.read(str(filename))
+    rate, signal = wav.read(filename)
 
     # siccome sappiamo che la durata massima di un file audio è un secondo (cioè max(length(signal)) = rate)
     # tengo al massimo un secondo
@@ -258,11 +282,9 @@ def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
     # print('Rate: ' + str(rate))
     # print('Signal length: ' + str(len(sig)))
 
-    # output = np.zeros(input_size)
-
     num_features = input_size[1]
 
-    if feature_type.decode() == 'cepstral':
+    if feature_type == 'cepstral':
 
         mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
                          nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
@@ -271,8 +293,7 @@ def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
         output = (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
 
 
-
-    if feature_type.decode() == 'mel-spectrogram':
+    elif feature_type == 'mel-spectrogram':
 
         mel_spectrogram, _ = fbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
                          nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
@@ -281,18 +302,7 @@ def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
         output = ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
 
 
-
-    if feature_type.decode() == 'log-mel-spectrogram':
-
-        mel_spectrogram = logfbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
-                                      nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
-                                      lowfreq=0, highfreq=None, preemph=0.97)
-
-        output = (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
-
-
-
-    if feature_type.decode() == 'mel-spectrogram-Audeep':
+    elif feature_type == 'mel-spectrogram-Audeep':
 
         _, _, p_s = power_spectrum(signal, rate, int(rate * win_len), int(rate * win_step))
         mel_spectrogram = mel_spectrum(p_s, None, rate, int(rate * win_len), num_features).astype(dtype='float32')
@@ -301,9 +311,21 @@ def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
         output = ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
 
 
+    else:
+        # 'log-mel-spectrogram':
+        mel_spectrogram = logfbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
+                                   nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
+                                   lowfreq=0, highfreq=None, preemph=0.97)
+
+        output = (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
+
+
+
     # this means that we are using a cnn model, because it expects a 3D input
-    if len(input_size == 3):
+    if len(input_size) == 3:
         output = output.reshape(input_size)
+
+    # print(output.shape)
 
 
     return output
@@ -318,7 +340,7 @@ def normalize_tensor(x, axes=[0], epsilon=1e-8):
 
 
 def create_dataset(filenames, labels, batch_size, input_size, network_model,
-                   win_len, win_step, feature_type='log-mel-spectrogram', shuffle=False,
+                   win_len, win_step, feature_type='log-mel-spectrogram', shuffle=False, random_seed=0,
                    tensor_normalization=False, cache_file=None, mode='train'):
     """
     Crea un oggetto tf.data.Dataset da usare come input per un modello di classificazione o autoencoder
@@ -341,7 +363,7 @@ def create_dataset(filenames, labels, batch_size, input_size, network_model,
 
     # Mappa la funzione compute_spectrogram
     to_spectrogram = lambda filename: (tf.ensure_shape(tf.numpy_function(compute_spectrogram,
-                                                                    [filename, input_size, win_len, win_step, feature_type],
+                                                                    [filename, input_size, win_len, win_step, feature_type, 'tensorflow'],
                                                                     tf.float32), input_size))
 
     dataset = input_dataset.map(to_spectrogram, num_parallel_calls=os.cpu_count())
@@ -372,7 +394,7 @@ def create_dataset(filenames, labels, batch_size, input_size, network_model,
 
 
     # modalità classificazione, il target è la label
-    if network_model == 'debug_classifier' or network_model == 'encoder_mlp_classifier1' or network_model == 'cnn_model1':
+    if network_model == 'encoder_mlp_classifier1' or network_model == 'cnn_model1':
         # come scrivevo sotto, si potrebbe fare qui l'operazione di one hot encoding con qualcosa del tipo
         # dy_valid = tf.data.Dataset.from_tensor_slices(valid_labels).map(lambda z: tf.one_hot(z, 10))
         dataset = tf.data.Dataset.zip((train_dataset, target_dataset))
@@ -385,7 +407,14 @@ def create_dataset(filenames, labels, batch_size, input_size, network_model,
 
     # secondo me funziona però necessita molto tempo... da provare nel cluster
     if shuffle:
-        dataset = dataset.shuffle(len(filenames))
+        shuffle_buffer_size = 10000
+
+        if len(filenames) < shuffle_buffer_size:
+            shuffle_buffer_size = len(filenames)
+
+        # dataset = dataset.shuffle(len(filenames), seed=random_seed)
+        dataset = dataset.shuffle(shuffle_buffer_size, seed=random_seed, reshuffle_each_iteration=True)
+
 
     # Repeat the dataset indefinitely only during training (and not during testing phase)
     if mode == 'train':
@@ -498,7 +527,8 @@ def save_training_accuracy_trend_plot(history, network_model, model_version):
     plt.close()
 
 
-def printInfo(network_model_to_train, model_version_to_train, num_features, batch_size, max_timesteps_stectrograms, win_len, win_step, num_epochs):
+def printInfo(network_model_to_train, model_version_to_train, num_features, batch_size, max_timesteps_stectrograms,
+              win_len, win_step, num_epochs, lr, lr_drop_factor, drop_every):
 
     print()
     print('TRAINING INFORMATION:')
@@ -510,4 +540,7 @@ def printInfo(network_model_to_train, model_version_to_train, num_features, batc
     print('Time step/shift of each frame: ' + str(win_step))
     print('Batch size: ' + str(batch_size))
     print('Number of epochs: ' + str(num_epochs))
+    print('Learning rate: ' + str(lr))
+    print('Learning rate drop factor: ' + str(lr_drop_factor))
+    print('Learning rate drop every: ' + str(drop_every) + ' epochs')
     print()

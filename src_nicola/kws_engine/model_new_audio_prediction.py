@@ -23,14 +23,14 @@ from tensorflow.keras.models import load_model
 RUN_ON_CLUSTER = False
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
-NETWORK_MODEL_TO_LOAD = 'encoder_mlp_classifier1'
-# NETWORK_MODEL_TO_LOAD = 'cnn_model1'
+# NETWORK_MODEL_TO_LOAD = 'encoder_mlp_classifier1'
+NETWORK_MODEL_TO_LOAD = 'cnn_model1'
 
 MODEL_VERSION_TO_LOAD = 0.1
 
 
 NEW_AUDIO_FILES_DIR = 'C:/Users/admin/Desktop/HDA/final_project/kws_engine/src_nicola/kws_engine/new_audio_files'
-NEW_AUDIO_FILENAME = 'five_1'
+NEW_AUDIO_FILENAME = 'cat_1'
 
 NUM_FEATURES = 40 # number of features per sample (Mel), 320 nel paper degli autoencoder, io proverei 40 nel nostro caso
 NUM_RNN_UNITS = 256 # GRU units in encoder and decoder
@@ -71,13 +71,21 @@ def main(argv):
     # default input_shape of the encoder_mlp_classifier
     input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES)
 
+    # qui lo metto tridimensionale perchè dentro la funzione compute_spectrogram il parametro nella posizione 1 è considerato il numero di features
+    # sotto farò il reshape a 4 dimensioni per la predizione con il modello cnn
     if NETWORK_MODEL_TO_LOAD == 'cnn_model1':
-        input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1)
-
+        input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1) # 3D
 
     real_label = NEW_AUDIO_FILENAME.split('_')[0]
     input_spectrogram = compute_spectrogram(str(NEW_AUDIO_FILES_DIR + '/' + NEW_AUDIO_FILENAME + '.wav'), input_shape, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE])
 
+
+    if NETWORK_MODEL_TO_LOAD == 'cnn_model1':
+        input_shape = (1, MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1)  # 4D
+        input_spectrogram = input_spectrogram.reshape(input_shape) # 4D
+
+
+    # creazione del dizionario delle label
     labels_counter = 0
     labels_dict = {}
 
@@ -98,6 +106,7 @@ def main(argv):
 
     print('Done')
     print()
+
 
     print('Loading the trained classification model...')
     classification_model = load_model(
@@ -121,72 +130,6 @@ def main(argv):
         print('Incorrect audio file classification!')
 
 
-
-
-
-
-def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
-
-    rate, signal = wav.read(str(filename))
-
-    # siccome sappiamo che la durata massima di un file audio è un secondo (cioè max(length(signal)) = rate)
-    # tengo al massimo un secondo
-    signal = signal[0:rate]
-    # faccio padding con zeri fino a 1 secondo se l'audio è più corto
-    signal_padded = np.pad(signal, (0, rate - signal.shape[0]))
-
-    # print('Rate: ' + str(rate))
-    # print('Signal length: ' + str(len(sig)))
-
-    # output = np.zeros(input_size)
-
-    num_features = input_size[1]
-
-    if feature_type == 'cepstral':
-
-        mfcc_features = mfcc(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step, numcep=num_features,
-                         nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
-                         lowfreq=0, highfreq=None, preemph=0.97, ceplifter=22, appendEnergy=True)
-
-        output = (mfcc_features / (np.amax(np.abs(mfcc_features)))).astype(dtype='float32')
-
-
-
-    if feature_type == 'mel-spectrogram':
-
-        mel_spectrogram, _ = fbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
-                         nfilt=num_features, nfft=512, #calculate_nfft(rate, win_len),
-                         lowfreq=0, highfreq=None, preemph=0.97)
-
-        output = ((2 * mel_spectrogram / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
-
-
-
-    if feature_type == 'log-mel-spectrogram':
-
-        mel_spectrogram = logfbank(signal_padded, samplerate=rate, winlen=win_len, winstep=win_step,
-                                      nfilt=num_features, nfft=512,  # calculate_nfft(rate, win_len),
-                                      lowfreq=0, highfreq=None, preemph=0.97)
-
-        output = (mel_spectrogram / (np.amax(np.abs(mel_spectrogram)))).astype(dtype='float32')
-
-
-
-    if feature_type == 'mel-spectrogram-Audeep':
-
-        _, _, p_s = power_spectrum(signal, rate, int(rate * win_len), int(rate * win_step))
-        mel_spectrogram = mel_spectrum(p_s, None, rate, int(rate * win_len), num_features).astype(dtype='float32')
-        print(mel_spectrogram.shape)
-
-        output = ((2 * np.rot90(mel_spectrogram) / np.amax(mel_spectrogram)) - 1).astype(dtype='float32')
-
-
-    # this means that we are using a cnn model, because it expects a 3D input
-    if len(input_size == 3):
-        output = output.reshape(input_size)
-
-
-    return output
 
 
 

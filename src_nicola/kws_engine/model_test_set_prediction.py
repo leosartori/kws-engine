@@ -23,8 +23,8 @@ from tensorflow.keras.models import load_model
 RUN_ON_CLUSTER = False
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
-NETWORK_MODEL_TO_LOAD = 'encoder_mlp_classifier1'
-# NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
+# NETWORK_MODEL_TO_LOAD = 'encoder_mlp_classifier1'
+NETWORK_MODEL_TO_LOAD = 'cnn_model1'
 
 MODEL_VERSION_TO_LOAD = 0.1
 
@@ -115,14 +115,22 @@ def main(argv):
         input_shape = (MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1)
 
 
+    # ATTUALMENTE QUESTA MODALITA' NON FUNZIONA: NON E' AGGIORNATA ALLE ULTIME VARIAZIONI DI CODICE!
+    # # crea dataset con classe Dataset di TF
+    # test_dataset = create_dataset(X_test_filenames, Y_test, BATCH_SIZE,
+    #                                input_size=input_shape,
+    #                                network_model=NETWORK_MODEL_TO_LOAD,
+    #                                win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE],
+    #                                shuffle=False, random_seed=0,
+    #                                tensor_normalization=False, cache_file='test_cache', mode='test')
 
-    # crea dataset con classe Dataset di TF
-    test_dataset = create_dataset(X_test_filenames, Y_test, BATCH_SIZE,
-                                   input_size=input_shape,
-                                   network_model=NETWORK_MODEL_TO_LOAD,
-                                   win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE],
-                                   shuffle=False,
-                                   tensor_normalization=False, cache_file='train_cache', mode='test')
+
+    spectrograms = []
+    for filename in X_test_filenames:
+        spectrograms.append(compute_spectrogram(str(filename), input_shape, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE]))
+
+    X_test = np.array(spectrograms)
+    Y_test = tf.keras.utils.to_categorical(Y_test)
 
 
     print('Done')
@@ -141,7 +149,8 @@ def main(argv):
     print('Making prediction on the test set:')
     start_time = timer()
 
-    test_loss, test_acc = classification_model.evaluate(test_dataset)
+    # test_loss, test_acc = classification_model.evaluate(test_dataset)
+    test_loss, test_acc = classification_model.evaluate(X_test, Y_test)
 
     print()
     print('Test loss: ' + str(test_loss))
@@ -152,6 +161,7 @@ def main(argv):
     print()
     print('===== TOTAL TEST SET PREDICTION TIME: {0:.1f} sec ====='.format(load_time))
     print()
+
 
 
 

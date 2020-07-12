@@ -8,6 +8,7 @@ from support_functions import *
 from IPython.display import Image
 from timeit import default_timer as timer
 from tensorflow.keras.models import load_model
+import random
 
 from spectral_audeep import *
 
@@ -25,12 +26,11 @@ from spectral_audeep import *
 RUN_ON_CLUSTER = True
 
 # select the model to train
-# NETWORK_MODEL_TO_TRAIN = 'debug_classifier'
-# NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
+NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
-NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
+# NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
 
-MODEL_VERSION_TO_TRAIN = 0.1
+MODEL_VERSION_TO_TRAIN = 0.3
 
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
@@ -61,7 +61,7 @@ NUM_RNN_UNITS = 256 # GRU units in encoder and decoder
 NUM_MLP_UNITS = 150
 
 LR = 0.001
-LR_DROP_FACTOR = 0.7
+LR_DROP_FACTOR = 0.8
 DROP_EVERY = 30
 NUM_EPOCH = 100
 
@@ -76,6 +76,9 @@ FEATURES_CHOICE = 2
 # each features will be automatically normalized between -1 and 1 in the function compute_spectrogram()
 # 'mel-spectrogram-Audeep' cannot be selected because I don't undestand why the time length of the output is half
 
+RANDOM_SEED = 0
+
+SMALL_DATASET = False
 
 
 # ----------------------------  MAIN --------------------------
@@ -129,6 +132,19 @@ def main(argv):
     Y_val = np.array(Y_val, dtype=int)
     Y_test = np.array(Y_test, dtype=int)
 
+    random.seed(RANDOM_SEED)
+    random.shuffle(X_train_filenames)
+    random.seed(RANDOM_SEED)
+    random.shuffle(X_val_filenames)
+    random.seed(RANDOM_SEED)
+    random.shuffle(X_test_filenames)
+    random.seed(RANDOM_SEED)
+    random.shuffle(Y_train)
+    random.seed(RANDOM_SEED)
+    random.shuffle(Y_val)
+    random.seed(RANDOM_SEED)
+    random.shuffle(Y_test)
+
     # trasformazione delle label in one hot encoding
     Y_train = tf.keras.utils.to_categorical(Y_train)
     Y_val = tf.keras.utils.to_categorical(Y_val)
@@ -146,17 +162,21 @@ def main(argv):
     print('Done')
     print()
 
-    # # per selezionare meno file e fare qualche prova di training in locale
-    # n_train = 500
-    # n_val = 100
-    # n_test = 200
-    # X_train_filenames = X_train_filenames[0:n_train]
-    # X_val_filenames = X_val_filenames[0:n_val]
-    # X_test_filenames = X_test_filenames[0:n_test]
-    # Y_train = Y_train[0:n_train]
-    # Y_val = Y_val[0:n_val]
-    # Y_test = Y_test[0:n_test]
-    #
+
+
+    # per selezionare meno file e fare qualche prova di training in locale
+    if SMALL_DATASET:
+        n_train = 500
+        n_val = 100
+        n_test = 200
+        X_train_filenames = X_train_filenames[0:n_train]
+        X_val_filenames = X_val_filenames[0:n_val]
+        X_test_filenames = X_test_filenames[0:n_test]
+        Y_train = Y_train[0:n_train]
+        Y_val = Y_val[0:n_val]
+        Y_test = Y_test[0:n_test]
+
+
     # print(X_train_filenames)
     # print(X_val_filenames)
 
@@ -186,30 +206,12 @@ def main(argv):
     val_steps = int(np.ceil(X_val_filenames.shape[0] / BATCH_SIZE))
 
 
+    printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
+              WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY)
+    print()
+
+
     # Network model training
-
-
-
-    # if NETWORK_MODEL_TO_TRAIN == 'debug_classifier':
-    #
-    #     # crea dataset con classe Dataset di TF
-    #     train_dataset = create_dataset(X_train_filenames, Y_train, NUM_FEATURES, BATCH_SIZE, False,
-    #                                    (MAX_TIMESTEPS, NUM_FEATURES), False, MAX_TIMESTEPS, WIN_LEN, WIN_STEP)
-    #     val_dataset = create_dataset(X_val_filenames, Y_val, NUM_FEATURES, BATCH_SIZE, False,
-    #                                  (MAX_TIMESTEPS, NUM_FEATURES), False, MAX_TIMESTEPS, WIN_LEN, WIN_STEP)
-    #     print('DONE')
-    #
-    #     # crea e traina il modello con API Keras
-    #     print('Creating model...')
-    #     debug_classifier = debug_classifier_model(NUM_FEATURES, NUM_UNITS, num_labels)
-    #     opt = tf.keras.optimizers.Adam(learning_rate=LR)
-    #     debug_classifier.compile(optimizer=opt, loss=tf.keras.losses.CategoricalCrossentropy(), metrics=["accuracy"])
-    #     print('DONE')
-    #
-    #     print('Training the model:')
-    #     debug_classifier.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
-    #                          validation_data=val_dataset, validation_steps=val_steps, verbose=VERBOSE_FIT)
-    #     print('DONE')
 
 
     if NETWORK_MODEL_TO_TRAIN == 'autoencoder1':
@@ -224,19 +226,19 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       random_seed=RANDOM_SEED, tensor_normalization=False, cache_file='train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     random_seed=RANDOM_SEED, tensor_normalization=False, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
         # crea e traina il modello con API Keras
         print('Creating the model...')
-        rnn_autoencoder = rnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), num_units=NUM_RNN_UNITS)
+        rnn_autoencoder = rnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), num_units=NUM_RNN_UNITS, enable_dropout=False)
 
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
@@ -261,7 +263,7 @@ def main(argv):
         print('Done')
         print()
         printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
-                  WIN_LEN, WIN_STEP, NUM_EPOCH)
+                  WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY)
         print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
         print()
 
@@ -299,13 +301,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       random_seed=RANDOM_SEED, tensor_normalization=False, cache_file='train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     random_seed=RANDOM_SEED, tensor_normalization=False, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
@@ -316,7 +318,8 @@ def main(argv):
         print()
 
         print('Creating the model...')
-        encoder_mlp, encoder = rnn_encoder_mlp_model(rnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES))
+        encoder_mlp, encoder = rnn_encoder_mlp_model(rnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES,
+                                                     input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), enable_dropout=False)
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
         callbacks = [LearningRateScheduler(schedule, verbose=1)]
@@ -341,7 +344,7 @@ def main(argv):
         print('Done')
         print()
         printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
-                  WIN_LEN, WIN_STEP, NUM_EPOCH)
+                  WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY)
         print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
         print()
 
@@ -378,20 +381,20 @@ def main(argv):
         train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
-                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE],
+                                       shuffle=False, tensor_normalization=False, cache_file='train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
-                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE],
+                                     shuffle=False, tensor_normalization=False, cache_file='val_cache', mode='train')
         print('Done')
         print()
 
         # crea e traina il modello con API Keras
         print('Creating the model...')
-        cnn = cnn_model(NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1))
+        cnn = cnn_model(NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1), enable_dropout=True)
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
         callbacks = [LearningRateScheduler(schedule, verbose=1)]
@@ -417,7 +420,7 @@ def main(argv):
         print('Done')
         print()
         printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
-                  WIN_LEN, WIN_STEP, NUM_EPOCH)
+                  WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY)
         print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
         print()
 
