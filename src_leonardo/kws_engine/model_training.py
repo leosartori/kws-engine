@@ -1,4 +1,5 @@
 
+import random
 import os
 import numpy as np
 import tensorflow as tf
@@ -22,21 +23,24 @@ from spectral_audeep import *
 # ---------------------------- PARAMETRI DI INPUT ----------------------------
 
 # flag per selezionare i parametri opportuni per runnare il codice sul cluster DEI
-RUN_ON_CLUSTER = True
+RANDOM_SEED = 0
+RUN_ON_CLUSTER = False
+SAVE_MODEL_CHECKPOINT = True
 
 # select the model to train
 # NETWORK_MODEL_TO_TRAIN = 'debug_classifier'
 # NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
-NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
+# NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
+NETWORK_MODEL_TO_TRAIN = 'autoencoder_cnn1'
 
-MODEL_VERSION_TO_TRAIN = 0.1
+MODEL_VERSION_TO_TRAIN = 9.9
 
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
 NETWORK_MODEL_TO_LOAD = 'autoencoder1'
 
-MODEL_VERSION_TO_LOAD = 0.1
+MODEL_VERSION_TO_LOAD = 9.9
 
 
 if RUN_ON_CLUSTER:
@@ -46,32 +50,35 @@ if RUN_ON_CLUSTER:
     BATCH_SIZE = 64 # 64 nel paper dell'autoencoder
     VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 else:
-    # TRAIN_DIR = 'C:/Users/Leonardo/Documents/Uni/HDA/Project/speech_commands_v0.02'
+    TRAIN_DIR = 'C:/Users/Leonardo/Documents/Uni/HDA/Project/speech_commands_v0.02'
     # TRAIN_DIR = 'C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train'
-    TRAIN_DIR = 'C:/Users/admin/Desktop/HDA/final_project/dataset/_'
+    # TRAIN_DIR = 'C:/Users/admin/Desktop/HDA/final_project/dataset/_'
     VALIDATION_FILENAME = './validation_list.txt'
     TESTING_FILENAME = './testing_list.txt'
-    BATCH_SIZE = 64 # 64 nel paper dell'autoencoder
+    BATCH_SIZE = 64  # 64 nel paper dell'autoencoder
     VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 
 
-NUM_FEATURES = 40 # number of features per sample, 320 nel paper degli autoencoder, io proverei 40 nel nostro caso
+NUM_FEATURES = 40  # number of features per sample, 320 nel paper degli autoencoder, io proverei 40 nel nostro caso
 
-NUM_RNN_UNITS = 256 # GRU units in encoder and decoder
+NUM_RNN_UNITS = 256  # GRU units in encoder and decoder
 NUM_MLP_UNITS = 150
 
 LR = 0.001
 LR_DROP_FACTOR = 0.7
 DROP_EVERY = 30
-NUM_EPOCH = 100
+NUM_EPOCH = 5
+if SAVE_MODEL_CHECKPOINT:
+    CHECKPOINT_PATH = './training_output'
+    CHECKPOINT_EPOCH_FREQ = 1
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
 # nel paper degli autoencoder in valori erano WIN_LEN = 0.2 e WIN_STEP = 0.1 però i file duravano 10 secondi, io userei 25/30ms e 10ms come al solito
-MAX_TIMESTEPS_SPECTROGRAMS = 98 # 1sample + (1sec - 0.03sec)/0.01sec = 98 samples
+MAX_TIMESTEPS_SPECTROGRAMS = 98  # 1sample + (1sec - 0.03sec)/0.01sec = 98 samples
 WIN_LEN = 0.03
 WIN_STEP = 0.01
 
-FEATURES_TYPES= ['cepstral', 'mel-spectrogram', 'log-mel-spectrogram', 'mel-spectrogram-Audeep']
+FEATURES_TYPES = ['cepstral', 'mel-spectrogram', 'log-mel-spectrogram', 'mel-spectrogram-Audeep']
 FEATURES_CHOICE = 2
 # each features will be automatically normalized between -1 and 1 in the function compute_spectrogram()
 # 'mel-spectrogram-Audeep' cannot be selected because I don't undestand why the time length of the output is half
@@ -129,6 +136,19 @@ def main(argv):
     Y_val = np.array(Y_val, dtype=int)
     Y_test = np.array(Y_test, dtype=int)
 
+    random.seed(RANDOM_SEED)
+    random.shuffle(X_train_filenames)
+    random.seed(RANDOM_SEED)
+    random.shuffle(X_val_filenames)
+    random.seed(RANDOM_SEED)
+    random.shuffle(X_test_filenames)
+    random.seed(RANDOM_SEED)
+    random.shuffle(Y_train)
+    random.seed(RANDOM_SEED)
+    random.shuffle(Y_val)
+    random.seed(RANDOM_SEED)
+    random.shuffle(Y_test)
+
     # trasformazione delle label in one hot encoding
     Y_train = tf.keras.utils.to_categorical(Y_train)
     Y_val = tf.keras.utils.to_categorical(Y_val)
@@ -147,18 +167,18 @@ def main(argv):
     print()
 
     # # per selezionare meno file e fare qualche prova di training in locale
-    # n_train = 500
-    # n_val = 100
-    # n_test = 200
-    # X_train_filenames = X_train_filenames[0:n_train]
-    # X_val_filenames = X_val_filenames[0:n_val]
-    # X_test_filenames = X_test_filenames[0:n_test]
-    # Y_train = Y_train[0:n_train]
-    # Y_val = Y_val[0:n_val]
-    # Y_test = Y_test[0:n_test]
-    #
-    # print(X_train_filenames)
-    # print(X_val_filenames)
+    n_train = 1000
+    n_val = 100
+    n_test = 20
+    X_train_filenames = X_train_filenames[0:n_train]
+    X_val_filenames = X_val_filenames[0:n_val]
+    X_test_filenames = X_test_filenames[0:n_test]
+    Y_train = Y_train[0:n_train]
+    Y_val = Y_val[0:n_val]
+    Y_test = Y_test[0:n_test]
+
+    print(X_train_filenames)
+    print(X_val_filenames)
 
     # # questa parte serviva a verificare la correttezza della normalizzazione, e stampava uno spettrogramma (ruotato)
     # maxs = []
@@ -211,6 +231,15 @@ def main(argv):
     #                          validation_data=val_dataset, validation_steps=val_steps, verbose=VERBOSE_FIT)
     #     print('DONE')
 
+    # callback per il salvataggio di checkpoint durante il training del modello
+    # save_freq deve essere espresso in termini di numero di batches
+    # (https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint)
+    if SAVE_MODEL_CHECKPOINT:
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            CHECKPOINT_PATH + '/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) +
+            '_checkpoint_{epoch:02d}.h5', monitor='val_loss', verbose=0, save_best_only=False,
+            save_weights_only=False, mode='auto', save_freq=CHECKPOINT_EPOCH_FREQ*BATCH_SIZE)
+
 
     if NETWORK_MODEL_TO_TRAIN == 'autoencoder1':
 
@@ -240,7 +269,10 @@ def main(argv):
 
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
-        callbacks = [LearningRateScheduler(schedule, verbose=1)]
+        if SAVE_MODEL_CHECKPOINT:
+            callbacks = [LearningRateScheduler(schedule, verbose=1), model_checkpoint_callback]
+        else:
+            callbacks = [LearningRateScheduler(schedule, verbose=1)]
 
         opt = tf.keras.optimizers.Adam(learning_rate=LR)
         rnn_autoencoder.compile(optimizer=opt, loss=tf.keras.losses.MeanSquaredError(), metrics=["mse"]) # nel paper viene scritto che usano rmse...
@@ -284,6 +316,81 @@ def main(argv):
         print("Descrizione del modello per il transfer learning dopo il training dell'autoencoder")
         print(rnn_autoencoder.layers)
 
+    if NETWORK_MODEL_TO_TRAIN == 'autoencoder_cnn1':
+
+        # CREAZIONE E TRAIN DEL MODELLO
+        print('Creating TF dataset...')
+        # per il momento lascio lo shuffle a False perchè ho notato che ci mette un sacco di tempo per farlo (visto in locale, magari nel cluster non è così)
+        # mettendo a True con pochi dati ovviamente va veloce lo shuffle, da provare nel cluster
+
+        # crea dataset con classe Dataset di TF
+        train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
+                                       input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
+                                       network_model=NETWORK_MODEL_TO_TRAIN,
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+
+        val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
+                                     input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
+                                     network_model=NETWORK_MODEL_TO_TRAIN,
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+        print('Done')
+        print()
+
+        # crea e traina il modello con API Keras
+        print('Creating the model...')
+        cnn_autoencoder = cnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1))
+
+
+        schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
+        if SAVE_MODEL_CHECKPOINT:
+            callbacks = [LearningRateScheduler(schedule, verbose=1), model_checkpoint_callback]
+        else:
+            callbacks = [LearningRateScheduler(schedule, verbose=1)]
+
+        opt = tf.keras.optimizers.Adam(learning_rate=LR)
+        cnn_autoencoder.compile(optimizer=opt, loss=tf.keras.losses.MeanSquaredError(), metrics=["mse"]) # nel paper viene scritto che usano rmse...
+        print('Done')
+        print()
+
+
+        print('Training the model:')
+        start_time = timer()
+
+        history = cnn_autoencoder.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
+                    validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks, verbose=VERBOSE_FIT)
+
+        end_time = timer()
+        load_time = end_time - start_time
+
+        print()
+        print('Done')
+        print()
+        printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
+                  WIN_LEN, WIN_STEP, NUM_EPOCH)
+        print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
+        print()
+
+
+        # save a plot of the loss/mse trend during the training phase
+        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, 'MSE')
+
+        # saving a picture of the model used
+        tf.keras.utils.plot_model(cnn_autoencoder,
+                                  to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
+                                      MODEL_VERSION_TO_TRAIN) + '.png')
+
+        cnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
+        print('Model saved to disk')
+        print()
+
+        cnn_autoencoder.summary()
+
+        print()
+        print("Descrizione del modello per il transfer learning dopo il training dell'autoencoder")
+        print(cnn_autoencoder.layers)
+
 
 
 
@@ -319,7 +426,10 @@ def main(argv):
         encoder_mlp, encoder = rnn_encoder_mlp_model(rnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES))
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
-        callbacks = [LearningRateScheduler(schedule, verbose=1)]
+        if SAVE_MODEL_CHECKPOINT:
+            callbacks = [LearningRateScheduler(schedule, verbose=1), model_checkpoint_callback]
+        else:
+            callbacks = [LearningRateScheduler(schedule, verbose=1)]
 
         opt = tf.keras.optimizers.Adam(learning_rate=LR)
         encoder_mlp.compile(optimizer=opt, loss=tf.keras.losses.CategoricalCrossentropy(),
@@ -394,7 +504,10 @@ def main(argv):
         cnn = cnn_model(NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1))
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
-        callbacks = [LearningRateScheduler(schedule, verbose=1)]
+        if SAVE_MODEL_CHECKPOINT:
+            callbacks = [LearningRateScheduler(schedule, verbose=1), model_checkpoint_callback]
+        else:
+            callbacks = [LearningRateScheduler(schedule, verbose=1)]
 
         opt = tf.keras.optimizers.Adam(learning_rate=LR)
         cnn.compile(optimizer=opt, loss=tf.keras.losses.CategoricalCrossentropy(),

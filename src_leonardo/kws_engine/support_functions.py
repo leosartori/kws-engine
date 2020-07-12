@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, Dropout, Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten
+from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, Dropout, Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, UpSampling2D
 from tensorflow.keras.models import Model, Sequential
 import matplotlib.pyplot as plt
 
@@ -71,6 +71,29 @@ def cnn_model(num_classes, input_size):
 
     return model
 
+def cnn_autoencoder_model(input_size):
+    # https://blog.keras.io/building-autoencoders-in-keras.html -> Convolutional autoencoder
+
+    encoder_inputs = Input(shape=input_size, name='cnn_autoencoder_input')
+
+    x = Conv2D(16, (3, 3), activation='relu', padding='same')(encoder_inputs)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(8, (3, 3), activation='relu', padding='same')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(8, (3, 3), activation='relu', padding='same')(x)
+    encoded = MaxPooling2D((2, 2), padding='same')(x)
+
+    x = Conv2D(8, (3, 3), activation='relu', padding='same')(encoded)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(8, (3, 3), activation='relu', padding='same')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(16, (3, 3), activation='relu')(x)
+    x = UpSampling2D((2, 2))(x)
+    decoder_outputs = Conv2D(1, (3, 3), activation='sigmoid', padding='same')(x)
+
+    seq_2_seq_cnn_autoencoder = Model(encoder_inputs, decoder_outputs, name='cnn_autoencoder_model')
+
+    return seq_2_seq_cnn_autoencoder
 
 
 def rnn_autoencoder_model(input_size, num_units):
@@ -170,19 +193,31 @@ def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size):
 
     encoder_model = Model(encoder_inputs, encoder_dense, name='rnn_encoder_model')
 
+
     encoder_model.trainable = False
 
 
     dropout_probability = 0.4 # as in the paper
 
-    classification_model = Sequential(name='mlp_classifier')
-    classification_model.add(encoder_model)
-    classification_model.add(Dropout(dropout_probability))
-    classification_model.add(Dense(num_units, activation='relu'))
-    classification_model.add(Dropout(dropout_probability))
-    classification_model.add(Dense(num_units, activation='relu'))
-    classification_model.add(Dropout(dropout_probability))
-    classification_model.add(Dense(num_classes, activation='softmax'))
+    encoder_output = encoder_model(encoder_inputs, training=False)
+    dropout_output0 = Dropout(dropout_probability)(encoder_output)
+    dense_out0 = Dense(num_units, activation='relu')(dropout_output0)
+    dropout_output1 = Dropout(dropout_probability)(dense_out0)
+    dense_out1 = Dense(num_units, activation='relu')(dropout_output1)
+    dropout_output2 = Dropout(dropout_probability)(dense_out1)
+    final_output = Dense(num_classes, activation='softmax')(dropout_output2)
+
+    classification_model = Model(encoder_inputs, final_output, name='mlp_classifier')
+
+    # classification_model = Sequential(name='mlp_classifier')
+    # classification_model.add(encoder_model)
+    # classification_model.add(Dropout(dropout_probability))
+    # classification_model.add(Dense(num_units, activation='relu'))
+    # classification_model.add(Dropout(dropout_probability))
+    # classification_model.add(Dense(num_units, activation='relu'))
+    # classification_model.add(Dropout(dropout_probability))
+    # classification_model.add(Dense(num_classes, activation='softmax'))
+
 
     return classification_model, encoder_model
 
@@ -302,7 +337,7 @@ def compute_spectrogram(filename, input_size, win_len, win_step, feature_type):
 
 
     # this means that we are using a cnn model, because it expects a 3D input
-    if len(input_size == 3):
+    if len(input_size) == 3:
         output = output.reshape(input_size)
 
 
@@ -376,6 +411,9 @@ def create_dataset(filenames, labels, batch_size, input_size, network_model,
         # come scrivevo sotto, si potrebbe fare qui l'operazione di one hot encoding con qualcosa del tipo
         # dy_valid = tf.data.Dataset.from_tensor_slices(valid_labels).map(lambda z: tf.one_hot(z, 10))
         dataset = tf.data.Dataset.zip((train_dataset, target_dataset))
+
+    if network_model == 'autoencoder_cnn1':
+        dataset = tf.data.Dataset.zip((train_dataset, train_dataset))
 
 
 
