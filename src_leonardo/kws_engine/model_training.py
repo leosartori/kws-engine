@@ -32,13 +32,13 @@ SAVE_MODEL_CHECKPOINT = True
 # NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
 # NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
-NETWORK_MODEL_TO_TRAIN = 'autoencoder_cnn1'
+NETWORK_MODEL_TO_TRAIN = 'encoder_cnn_mlp_classifier1'
 
 MODEL_VERSION_TO_TRAIN = 9.9
 
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
-NETWORK_MODEL_TO_LOAD = 'autoencoder1'
+NETWORK_MODEL_TO_LOAD = 'autoencoder_cnn1'
 
 MODEL_VERSION_TO_LOAD = 9.9
 
@@ -473,6 +473,84 @@ def main(argv):
         encoder.summary()
         print()
         encoder_mlp.summary()
+
+    if NETWORK_MODEL_TO_TRAIN == 'encoder_cnn_mlp_classifier1':
+
+        # CREAZIONE E TRAIN DEL MODELLO
+        print('Creating TF dataset...')
+
+        # crea dataset con classe Dataset di TF
+        train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
+                                       input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
+                                       network_model=NETWORK_MODEL_TO_TRAIN,
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+
+        val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
+                                     input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
+                                     network_model=NETWORK_MODEL_TO_TRAIN,
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+        print('Done')
+        print()
+
+        # crea e traina il modello con API Keras
+        print('Loading the trained CNN autoencoder model...')
+        cnn_autoencoder = load_model('./training_output/models/' + NETWORK_MODEL_TO_LOAD + '_v' + str(MODEL_VERSION_TO_LOAD) + '.h5')
+        print('Done')
+        print()
+
+        print('Creating the model...')
+        encoder_cnn_mlp, encoder = cnn_encoder_mlp_model(cnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES, input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1))
+
+        schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
+        if SAVE_MODEL_CHECKPOINT:
+            callbacks = [LearningRateScheduler(schedule, verbose=1), model_checkpoint_callback]
+        else:
+            callbacks = [LearningRateScheduler(schedule, verbose=1)]
+
+        opt = tf.keras.optimizers.Adam(learning_rate=LR)
+        encoder_cnn_mlp.compile(optimizer=opt, loss=tf.keras.losses.CategoricalCrossentropy(),
+                                metrics=["accuracy"])
+        print('Done')
+        print()
+
+        print('Training the model:')
+        start_time = timer()
+
+        history = encoder_cnn_mlp.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
+                                      validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks,
+                                      verbose=VERBOSE_FIT)
+
+        end_time = timer()
+        load_time = end_time - start_time
+
+        print()
+        print('Done')
+        print()
+        printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
+                  WIN_LEN, WIN_STEP, NUM_EPOCH)
+        print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
+        print()
+
+
+        # # save a plot of the loss/mse trend during the training phase
+        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, 'Categorical Cross-Entropy')
+        save_training_accuracy_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN)
+
+        # Showing and saving a picture of the model used
+        tf.keras.utils.plot_model(encoder_cnn_mlp,
+                                  to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
+                                      MODEL_VERSION_TO_TRAIN) + '.png')
+
+        encoder_cnn_mlp.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
+        print('Model saved to disk')
+        print()
+
+        print()
+        encoder.summary()
+        print()
+        encoder_cnn_mlp.summary()
 
 
 

@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, Dropout, Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, UpSampling2D
+from tensorflow.keras.layers import Input, Dense, GRU, Bidirectional, Dropout, Conv2D, BatchNormalization, Activation, MaxPooling2D, Flatten, UpSampling2D, ZeroPadding2D, Cropping2D
 from tensorflow.keras.models import Model, Sequential
 import matplotlib.pyplot as plt
 
@@ -76,20 +76,49 @@ def cnn_autoencoder_model(input_size):
 
     encoder_inputs = Input(shape=input_size, name='cnn_autoencoder_input')
 
-    x = Conv2D(16, (3, 3), activation='relu', padding='same')(encoder_inputs)
+    x = ZeroPadding2D(padding=(1, 0))(encoder_inputs)
+    x = Conv2D(16, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(8, (3, 3), activation='relu', padding='same')(x)
+    print(x.shape)
+    x = Conv2D(8, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(8, (3, 3), activation='relu', padding='same')(x)
-    encoded = MaxPooling2D((2, 2), padding='same')(x)
+    print(x.shape)
+    x = Conv2D(8, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    print(x.shape)
+    x = Conv2D(8, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
+    encoded = MaxPooling2D((2, 1), padding='same')(x)
+    print(encoded.shape)
+    # A questo punto il sample ha dimensioni 7x5x8=280 (dimensione encoding)
 
-    x = Conv2D(8, (3, 3), activation='relu', padding='same')(encoded)
+    print('decoder')
+    x = Conv2D(8, (2, 2), activation='relu', padding='same')(encoded)
+    print(x.shape)
+    x = UpSampling2D((2, 1))(x)
+    print(x.shape)
+    x = Cropping2D(cropping=((0, 1), (0, 0)))(x)
+    print(x.shape)
+    x = Conv2D(8, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
     x = UpSampling2D((2, 2))(x)
-    x = Conv2D(8, (3, 3), activation='relu', padding='same')(x)
+    print(x.shape)
+    x = Cropping2D(cropping=((0, 1), (0, 0)))(x)
+    print(x.shape)
+    x = Conv2D(8, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
     x = UpSampling2D((2, 2))(x)
-    x = Conv2D(16, (3, 3), activation='relu')(x)
+    print(x.shape)
+    x = Conv2D(16, (2, 2), activation='relu', padding='same')(x)
+    print(x.shape)
     x = UpSampling2D((2, 2))(x)
-    decoder_outputs = Conv2D(1, (3, 3), activation='sigmoid', padding='same')(x)
+    print(x.shape)
+    x = Conv2D(1, (2, 2), activation='sigmoid', padding='same')(x)
+    decoder_outputs = Cropping2D(cropping=(1, 0))(x)
+    print(decoder_outputs.shape)
 
     seq_2_seq_cnn_autoencoder = Model(encoder_inputs, decoder_outputs, name='cnn_autoencoder_model')
 
@@ -156,6 +185,44 @@ def rnn_autoencoder_model(input_size, num_units):
     seq_2_seq_rnn_autoencoder = Model((encoder_inputs, decoder_inputs), final_output, name='rnn_autoencoder_model')
 
     return seq_2_seq_rnn_autoencoder
+
+
+def cnn_encoder_mlp_model(cnn_autoencoder, num_units, num_classes, input_size):
+
+    # transfer learning: https://keras.io/guides/transfer_learning/
+
+    cnn_encoder_input = Input(shape=input_size)
+    x = cnn_autoencoder.layers[1](cnn_encoder_input)
+    x = cnn_autoencoder.layers[2](x)
+    x = cnn_autoencoder.layers[3](x)
+    x = cnn_autoencoder.layers[4](x)
+    x = cnn_autoencoder.layers[5](x)
+    x = cnn_autoencoder.layers[6](x)
+    x = cnn_autoencoder.layers[7](x)
+    x = cnn_autoencoder.layers[8](x)
+    cnn_encoder_output = cnn_autoencoder.layers[9](x)
+
+    encoder_model = Model(cnn_encoder_input, cnn_encoder_output, name='cnn_encoder_model')
+
+
+    encoder_model.trainable = False
+
+
+    dropout_probability = 0.4 # as in the paper
+
+    encoder_output = encoder_model(cnn_encoder_input, training=False)
+    flatten_encoder_output = Flatten()(encoder_output)
+    dropout_output0 = Dropout(dropout_probability)(flatten_encoder_output)
+    dense_out0 = Dense(num_units, activation='relu')(dropout_output0)
+    dropout_output1 = Dropout(dropout_probability)(dense_out0)
+    dense_out1 = Dense(num_units, activation='relu')(dropout_output1)
+    dropout_output2 = Dropout(dropout_probability)(dense_out1)
+    final_output = Dense(num_classes, activation='softmax')(dropout_output2)
+
+    classification_model = Model(cnn_encoder_input, final_output, name='cnn_mlp_classifier')
+
+
+    return classification_model, encoder_model
 
 
 
@@ -407,7 +474,7 @@ def create_dataset(filenames, labels, batch_size, input_size, network_model,
 
 
     # modalità classificazione, il target è la label
-    if network_model == 'debug_classifier' or network_model == 'encoder_mlp_classifier1' or network_model == 'cnn_model1':
+    if network_model == 'debug_classifier' or network_model == 'encoder_mlp_classifier1' or network_model == 'cnn_model1' or network_model=='encoder_cnn_mlp_classifier1':
         # come scrivevo sotto, si potrebbe fare qui l'operazione di one hot encoding con qualcosa del tipo
         # dy_valid = tf.data.Dataset.from_tensor_slices(valid_labels).map(lambda z: tf.one_hot(z, 10))
         dataset = tf.data.Dataset.zip((train_dataset, target_dataset))
