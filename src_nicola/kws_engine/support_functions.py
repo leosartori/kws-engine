@@ -70,7 +70,7 @@ def rnn_autoencoder_model(input_size, num_units, enable_dropout=True):
     """
 
     if enable_dropout:
-        GRU_dropout_probability = 0.2 # as in the paper
+        GRU_dropout_probability = 0.3 # as in the paper
     else:
         GRU_dropout_probability = 0.0
 
@@ -528,7 +528,7 @@ def save_training_accuracy_trend_plot(history, network_model, model_version):
 
 
 def printInfo(network_model_to_train, model_version_to_train, num_features, batch_size, max_timesteps_stectrograms,
-              win_len, win_step, num_epochs, lr, lr_drop_factor, drop_every):
+              win_len, win_step, num_epochs, lr, lr_drop_factor, drop_every, opt_key=None, num_rnn_units=None, loss_key=None):
 
     print()
     print('TRAINING INFORMATION:')
@@ -543,4 +543,8 @@ def printInfo(network_model_to_train, model_version_to_train, num_features, batc
     print('Learning rate: ' + str(lr))
     print('Learning rate drop factor: ' + str(lr_drop_factor))
     print('Learning rate drop every: ' + str(drop_every) + ' epochs')
+    if opt_key is not None and num_rnn_units is not None and loss_key is not None:
+        print('Optimizer: ' + opt_key)
+        print('Number of RNN units: ' + str(num_rnn_units))
+        print('Loss type: ' + loss_key)
     print()

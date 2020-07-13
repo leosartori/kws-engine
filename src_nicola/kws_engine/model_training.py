@@ -23,7 +23,7 @@ from spectral_audeep import *
 # ---------------------------- PARAMETRI DI INPUT ----------------------------
 
 # flag per selezionare i parametri opportuni per runnare il codice sul cluster DEI
-RUN_ON_CLUSTER = True
+RUN_ON_CLUSTER = False
 
 # select the model to train
 NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
@@ -43,26 +43,23 @@ if RUN_ON_CLUSTER:
     TRAIN_DIR = '/nfsd/hda/DATASETS/Project_1'
     VALIDATION_FILENAME = '/nfsd/hda/DATASETS/Project_1/validation_list.txt'
     TESTING_FILENAME = '/nfsd/hda/DATASETS/Project_1/testing_list.txt'
-    BATCH_SIZE = 64 # 64 nel paper dell'autoencoder
-    VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
+
 else:
     # TRAIN_DIR = 'C:/Users/Leonardo/Documents/Uni/HDA/Project/speech_commands_v0.02'
     # TRAIN_DIR = 'C:/Users/Leonardo/Documents/Uni/HDA/Project/debug_dataset_020620/train'
     TRAIN_DIR = 'C:/Users/admin/Desktop/HDA/final_project/dataset/_'
     VALIDATION_FILENAME = './validation_list.txt'
     TESTING_FILENAME = './testing_list.txt'
-    BATCH_SIZE = 64 # 64 nel paper dell'autoencoder
-    VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 
+VERBOSE_FIT = 1  # 0=silent, 1=progress bar, 2=one line per epoch
 
-NUM_FEATURES = 40 # number of features per sample, 320 nel paper degli autoencoder, io proverei 40 nel nostro caso
-
-NUM_RNN_UNITS = 256 # GRU units in encoder and decoder
-NUM_MLP_UNITS = 150
+# A MANO
+NUM_FEATURES = 40
+NUM_MLP_UNITS = 30
 
 LR = 0.001
-LR_DROP_FACTOR = 0.8
-DROP_EVERY = 30
+LR_DROP_FACTOR = 0.7
+DROP_EVERY = 25
 NUM_EPOCH = 100
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
@@ -78,7 +75,18 @@ FEATURES_CHOICE = 2
 
 RANDOM_SEED = 0
 
+UNKNOWN_LABELS = ['bed', 'bird', 'cat', 'dog', 'happy', 'house', 'marvin', 'sheila', 'tree', 'visual', 'wow']
+
 SMALL_DATASET = False
+
+OPTIMIZERS = {'adam': tf.keras.optimizers.Adam(learning_rate=LR), 'sgd': tf.keras.optimizers.SGD(lr=LR, momentum=0.9)}
+LOSSES = {'mse': tf.keras.losses.MeanSquaredError(), 'mae': tf.keras.losses.MeanAbsoluteError()}
+# ACTIVATIONS = ['relu', 'elu']
+BATCH_SIZE = 64 # 64 nel paper dell'autoencoder
+# DROPOUT = 0.3
+NUM_RNN_UNITS = [4, 8, 12]
+NUM_CNN_DENSE_UNITS = [60, 100]
+
 
 
 # ----------------------------  MAIN --------------------------
@@ -93,8 +101,9 @@ def main(argv):
 
     filenames = []
     labels = []
-    labels_counter = 0
+    labels_counter = 1
     labels_dict = {}
+    labels_dict[0] = 'unknown'
 
     entry_list = os.listdir(TRAIN_DIR)
     entry_list.sort() # ordino perchè os.listdir() restituisce in ordine arbitrario in teoria
@@ -106,15 +115,22 @@ def main(argv):
         if (os.path.isfile(TRAIN_DIR + '/' + entry) is True) or (entry == '_background_noise_'):
             continue
 
-        labels_dict[labels_counter] = entry
+        if entry not in UNKNOWN_LABELS:
+            labels_dict[labels_counter] = entry
+
 
         for file in os.listdir(TRAIN_DIR + '/' + entry):
 
             if file.lower().endswith('.wav'):
                 filenames.append(TRAIN_DIR + '/' + entry + '/' + file)
-                labels.append(labels_counter)
+                if entry not in UNKNOWN_LABELS:
+                    labels.append(labels_counter)
+                else:
+                    labels.append(0)
 
-        labels_counter += 1
+        if entry not in UNKNOWN_LABELS:
+            labels_counter += 1
+
 
     X_train_filenames, Y_train, X_val_filenames, Y_val, X_test_filenames, Y_test =\
         split_dataset_from_list(filenames, labels, VALIDATION_FILENAME, TESTING_FILENAME)
@@ -163,7 +179,6 @@ def main(argv):
     print()
 
 
-
     # per selezionare meno file e fare qualche prova di training in locale
     if SMALL_DATASET:
         n_train = 500
@@ -184,7 +199,7 @@ def main(argv):
     # maxs = []
     # mins = []
     #
-    # for file in X_train_filenames:
+    # for file in X_train_filenames[0:3]:
     #
     #     sp = compute_spectrogram(file, NUM_FEATURES, WIN_LEN, WIN_STEP, FEATURES_TYPES[FEATURES_CHOICE])
     #
@@ -197,18 +212,14 @@ def main(argv):
     # plt.pcolormesh(np.rot90(sp, k=3)) # ruoto a destra di 90 gradi, cioè a sinistra di 270 gradi
     # # plt.pcolormesh(sp)
     # plt.show()
-    #
+    # 
+    # print()
     # return
 
 
     # steps per epoca in modo da analizzare tutto il dataset
     train_steps = int(np.ceil(X_train_filenames.shape[0] / BATCH_SIZE))
     val_steps = int(np.ceil(X_val_filenames.shape[0] / BATCH_SIZE))
-
-
-    printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
-              WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY)
-    print()
 
 
     # Network model training
@@ -236,55 +247,71 @@ def main(argv):
         print('Done')
         print()
 
-        # crea e traina il modello con API Keras
-        print('Creating the model...')
-        rnn_autoencoder = rnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), num_units=NUM_RNN_UNITS, enable_dropout=False)
+
+        training_count = 1
+
+        for opt_key, opt_value in OPTIMIZERS.items():
+
+            for num_rnn_units in NUM_RNN_UNITS:
+
+                for loss_key, loss_value in LOSSES.items():
+
+                    print()
+                    print('===== TRAINING COUNT: ' + str(training_count) + ' of ' + str(len(OPTIMIZERS) * len(NUM_RNN_UNITS) * len(LOSSES)) + ' =====')
+                    print()
+
+                    # crea e traina il modello con API Keras
+                    print('Creating the model...')
+                    rnn_autoencoder = rnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), num_units=num_rnn_units, enable_dropout=True)
 
 
-        schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
-        callbacks = [LearningRateScheduler(schedule, verbose=1)]
+                    schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
+                    callbacks = [LearningRateScheduler(schedule, verbose=1)]
 
-        opt = tf.keras.optimizers.Adam(learning_rate=LR)
-        rnn_autoencoder.compile(optimizer=opt, loss=tf.keras.losses.MeanSquaredError(), metrics=["mse"]) # nel paper viene scritto che usano rmse...
-        print('Done')
-        print()
-
-
-        print('Training the model:')
-        start_time = timer()
-
-        history = rnn_autoencoder.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
-                    validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks, verbose=VERBOSE_FIT)
-
-        end_time = timer()
-        load_time = end_time - start_time
-
-        print()
-        print('Done')
-        print()
-        printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
-                  WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY)
-        print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
-        print()
+                    rnn_autoencoder.compile(optimizer=opt_value, loss=loss_value, metrics=[loss_key]) # nel paper viene scritto che usano rmse...
+                    print('Done')
+                    print()
 
 
-        # save a plot of the loss/mse trend during the training phase
-        save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, 'MSE')
+                    print('Training the model:')
+                    start_time = timer()
 
-        # saving a picture of the model used
-        tf.keras.utils.plot_model(rnn_autoencoder,
-                                  to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
-                                      MODEL_VERSION_TO_TRAIN) + '.png')
+                    history = rnn_autoencoder.fit(x=train_dataset, epochs=NUM_EPOCH, steps_per_epoch=train_steps,
+                                validation_data=val_dataset, validation_steps=val_steps, callbacks=callbacks, verbose=VERBOSE_FIT)
 
-        rnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '.h5')
-        print('Model saved to disk')
-        print()
+                    end_time = timer()
+                    load_time = end_time - start_time
 
-        rnn_autoencoder.summary()
+                    print()
+                    print('Done')
+                    print()
+                    printInfo(NETWORK_MODEL_TO_TRAIN, MODEL_VERSION_TO_TRAIN, NUM_FEATURES, BATCH_SIZE, MAX_TIMESTEPS_SPECTROGRAMS,
+                              WIN_LEN, WIN_STEP, NUM_EPOCH, LR, LR_DROP_FACTOR, DROP_EVERY, opt_key, num_rnn_units, loss_key)
+                    print('===== TOTAL TRAINING TIME: {0:.1f} sec ====='.format(load_time))
+                    print()
 
-        print()
-        print("Descrizione del modello per il transfer learning dopo il training dell'autoencoder")
-        print(rnn_autoencoder.layers)
+
+                    # save a plot of the loss/mse trend during the training phase
+                    save_training_loss_trend_plot(history, NETWORK_MODEL_TO_TRAIN, str(MODEL_VERSION_TO_TRAIN) + '_' + opt_key + '_' + str(num_rnn_units) + '_' + loss_key, 'MSE')
+
+                    # saving a picture of the model used
+                    tf.keras.utils.plot_model(rnn_autoencoder,
+                                              to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
+                                                  MODEL_VERSION_TO_TRAIN) + '_' + opt_key + '_' + str(num_rnn_units) + '_' + loss_key + '.png')
+
+                    rnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '_' + opt_key + '_'
+                                         + str(num_rnn_units) + '_' + loss_key + '.h5')
+                    print('Model saved to disk')
+                    print()
+
+                    rnn_autoencoder.summary()
+
+                    print()
+                    print("Descrizione del modello per il transfer learning dopo il training dell'autoencoder")
+                    print(rnn_autoencoder.layers)
+
+
+                    training_count += 1
 
 
 
@@ -300,13 +327,13 @@ def main(argv):
         train_dataset = create_dataset(X_train_filenames, Y_train, BATCH_SIZE,
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
-                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                       win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=True,
                                        random_seed=RANDOM_SEED, tensor_normalization=False, cache_file='train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
-                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
+                                     win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=True,
                                      random_seed=RANDOM_SEED, tensor_normalization=False, cache_file='val_cache', mode='train')
         print('Done')
         print()
@@ -319,7 +346,7 @@ def main(argv):
 
         print('Creating the model...')
         encoder_mlp, encoder = rnn_encoder_mlp_model(rnn_autoencoder, NUM_MLP_UNITS, NUM_CLASSES,
-                                                     input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), enable_dropout=False)
+                                                     input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), enable_dropout=True)
 
         schedule = StepDecay(init_alpha=LR, factor=LR_DROP_FACTOR, drop_every=DROP_EVERY)
         callbacks = [LearningRateScheduler(schedule, verbose=1)]
