@@ -32,7 +32,9 @@ SAVE_MODEL_CHECKPOINT = True
 # NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
 # NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
-NETWORK_MODEL_TO_TRAIN = 'encoder_cnn_mlp_classifier1'
+# NETWORK_MODEL_TO_TRAIN = 'encoder_cnn_mlp_classifier1'
+NETWORK_MODEL_TO_TRAIN = 'autoencoder_cnn1'
+
 
 MODEL_VERSION_TO_TRAIN = 9.9
 
@@ -65,12 +67,12 @@ NUM_RNN_UNITS = 256  # GRU units in encoder and decoder
 NUM_MLP_UNITS = 150
 
 LR = 0.001
-LR_DROP_FACTOR = 0.7
-DROP_EVERY = 30
-NUM_EPOCH = 5
+LR_DROP_FACTOR = 0.5
+DROP_EVERY = 25
+NUM_EPOCH = 1
 if SAVE_MODEL_CHECKPOINT:
     CHECKPOINT_PATH = './training_output'
-    CHECKPOINT_EPOCH_FREQ = 1
+    CHECKPOINT_EPOCH_FREQ = 10
 
 # parametri per il calcolo dello spettrogramma (Mel features) a partire da file audio
 # nel paper degli autoencoder in valori erano WIN_LEN = 0.2 e WIN_STEP = 0.1 però i file duravano 10 secondi, io userei 25/30ms e 10ms come al solito
@@ -167,15 +169,15 @@ def main(argv):
     print()
 
     # # per selezionare meno file e fare qualche prova di training in locale
-    n_train = 1000
-    n_val = 100
-    n_test = 20
-    X_train_filenames = X_train_filenames[0:n_train]
-    X_val_filenames = X_val_filenames[0:n_val]
-    X_test_filenames = X_test_filenames[0:n_test]
-    Y_train = Y_train[0:n_train]
-    Y_val = Y_val[0:n_val]
-    Y_test = Y_test[0:n_test]
+    # n_train = 1000
+    # n_val = 100
+    # n_test = 20
+    # X_train_filenames = X_train_filenames[0:n_train]
+    # X_val_filenames = X_val_filenames[0:n_val]
+    # X_test_filenames = X_test_filenames[0:n_test]
+    # Y_train = Y_train[0:n_train]
+    # Y_val = Y_val[0:n_val]
+    # Y_test = Y_test[0:n_test]
 
     print(X_train_filenames)
     print(X_val_filenames)
@@ -253,13 +255,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_val_cache', mode='train')
         print('Done')
         print()
 
@@ -328,13 +330,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_val_cache', mode='train')
         print('Done')
         print()
 
@@ -406,13 +408,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_val_cache', mode='train')
         print('Done')
         print()
 
@@ -484,13 +486,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_val_cache', mode='train')
         print('Done')
         print()
 
@@ -567,13 +569,13 @@ def main(argv):
                                        input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                        network_model=NETWORK_MODEL_TO_TRAIN,
                                        win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                       tensor_normalization=False, cache_file='train_cache', mode='train')
+                                       tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_train_cache', mode='train')
 
         val_dataset = create_dataset(X_val_filenames, Y_val, BATCH_SIZE,
                                      input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES, 1),
                                      network_model=NETWORK_MODEL_TO_TRAIN,
                                      win_len=WIN_LEN, win_step=WIN_STEP, feature_type=FEATURES_TYPES[FEATURES_CHOICE], shuffle=False,
-                                     tensor_normalization=False, cache_file='val_cache', mode='train')
+                                     tensor_normalization=False, cache_file=NETWORK_MODEL_TO_TRAIN + '_val_cache', mode='train')
         print('Done')
         print()
 
