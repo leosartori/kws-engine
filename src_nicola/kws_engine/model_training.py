@@ -23,7 +23,7 @@ from spectral_audeep import *
 # ---------------------------- PARAMETRI DI INPUT ----------------------------
 
 # flag per selezionare i parametri opportuni per runnare il codice sul cluster DEI
-RUN_ON_CLUSTER = False
+RUN_ON_CLUSTER = True
 
 # select the model to train
 NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
@@ -212,7 +212,7 @@ def main(argv):
     # plt.pcolormesh(np.rot90(sp, k=3)) # ruoto a destra di 90 gradi, cioè a sinistra di 270 gradi
     # # plt.pcolormesh(sp)
     # plt.show()
-    # 
+    #
     # print()
     # return
 
@@ -260,6 +260,7 @@ def main(argv):
                     print('===== TRAINING COUNT: ' + str(training_count) + ' of ' + str(len(OPTIMIZERS) * len(NUM_RNN_UNITS) * len(LOSSES)) + ' =====')
                     print()
 
+
                     # crea e traina il modello con API Keras
                     print('Creating the model...')
                     rnn_autoencoder = rnn_autoencoder_model(input_size=(MAX_TIMESTEPS_SPECTROGRAMS, NUM_FEATURES), num_units=num_rnn_units, enable_dropout=True)
@@ -297,7 +298,7 @@ def main(argv):
                     # saving a picture of the model used
                     tf.keras.utils.plot_model(rnn_autoencoder,
                                               to_file='./training_output/images/model-plot_' + NETWORK_MODEL_TO_TRAIN + '_v' + str(
-                                                  MODEL_VERSION_TO_TRAIN) + '_' + opt_key + '_' + str(num_rnn_units) + '_' + loss_key + '.png')
+                                                  MODEL_VERSION_TO_TRAIN) + '.png')
 
                     rnn_autoencoder.save('./training_output/models/' + NETWORK_MODEL_TO_TRAIN + '_v' + str(MODEL_VERSION_TO_TRAIN) + '_' + opt_key + '_'
                                          + str(num_rnn_units) + '_' + loss_key + '.h5')
