@@ -163,7 +163,7 @@ def rnn_autoencoder_model(input_size, num_units):
     # init_dec_1 = (encoder_state_2, encoder_state_2)
     # init_dec_2 = (encoder_state_1, encoder_state_1)
 
-    decoder_inputs = Input(shape=input_size)
+    decoder_inputs = Input(shape=input_size, name="Decoder_input")
 
     # # N_l = 2 (due livelli)
     # decoder_outputs_1 = Bidirectional(
@@ -192,6 +192,10 @@ def cnn_encoder_mlp_model(cnn_autoencoder, num_units, num_classes, input_size):
     # transfer learning: https://keras.io/guides/transfer_learning/
 
     cnn_encoder_input = Input(shape=input_size)
+
+    for i in range(1, 10):
+        cnn_autoencoder.layers[i].trainable = False
+
     x = cnn_autoencoder.layers[1](cnn_encoder_input)
     x = cnn_autoencoder.layers[2](x)
     x = cnn_autoencoder.layers[3](x)
@@ -202,16 +206,11 @@ def cnn_encoder_mlp_model(cnn_autoencoder, num_units, num_classes, input_size):
     x = cnn_autoencoder.layers[8](x)
     cnn_encoder_output = cnn_autoencoder.layers[9](x)
 
-    encoder_model = Model(cnn_encoder_input, cnn_encoder_output, name='cnn_encoder_model')
+    encoder_model = Model(cnn_encoder_input, cnn_encoder_output)
 
+    dropout_probability = 0  # as in the paper
 
-    encoder_model.trainable = False
-
-
-    dropout_probability = 0.4 # as in the paper
-
-    encoder_output = encoder_model(cnn_encoder_input, training=False)
-    flatten_encoder_output = Flatten()(encoder_output)
+    flatten_encoder_output = Flatten()(cnn_encoder_output)
     dropout_output0 = Dropout(dropout_probability)(flatten_encoder_output)
     dense_out0 = Dense(num_units, activation='relu')(dropout_output0)
     dropout_output1 = Dropout(dropout_probability)(dense_out0)
@@ -227,6 +226,9 @@ def cnn_encoder_mlp_model(cnn_autoencoder, num_units, num_classes, input_size):
 
 
 def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size):
+
+    for i in range(0, len(rnn_autoencoder.layers)):
+        print(rnn_autoencoder.layers[i])
 
     # transfer learning: https://keras.io/guides/transfer_learning/
 
@@ -256,7 +258,7 @@ def rnn_encoder_mlp_model(rnn_autoencoder, num_units, num_classes, input_size):
 
     encoder_states_concatenation = rnn_autoencoder.layers[3]((encoder_rnn_layer1[1], encoder_rnn_layer2[1]))
 
-    encoder_dense = rnn_autoencoder.layers[5](encoder_states_concatenation)
+    encoder_dense = rnn_autoencoder.layers[4](encoder_states_concatenation)
 
     encoder_model = Model(encoder_inputs, encoder_dense, name='rnn_encoder_model')
 

@@ -24,25 +24,27 @@ from spectral_audeep import *
 
 # flag per selezionare i parametri opportuni per runnare il codice sul cluster DEI
 RANDOM_SEED = 0
+UNKNOWN_LABELS = ['bed', 'bird', 'cat', 'dog', 'happy', 'house', 'marvin', 'sheila', 'tree', 'visual', 'wow']
+
 RUN_ON_CLUSTER = False
 SAVE_MODEL_CHECKPOINT = True
 
 # select the model to train
 # NETWORK_MODEL_TO_TRAIN = 'debug_classifier'
 # NETWORK_MODEL_TO_TRAIN = 'autoencoder1'
-# NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
+NETWORK_MODEL_TO_TRAIN = 'encoder_mlp_classifier1'
 # NETWORK_MODEL_TO_TRAIN = 'cnn_model1'
 # NETWORK_MODEL_TO_TRAIN = 'encoder_cnn_mlp_classifier1'
-NETWORK_MODEL_TO_TRAIN = 'autoencoder_cnn1'
+# NETWORK_MODEL_TO_TRAIN = 'autoencoder_cnn1'
 
 
 MODEL_VERSION_TO_TRAIN = 9.9
 
 
 # select the model to load if a classifier needs to be trained on top of a pre-trained network model
-NETWORK_MODEL_TO_LOAD = 'autoencoder_cnn1'
+NETWORK_MODEL_TO_LOAD = 'autoencoder1'
 
-MODEL_VERSION_TO_LOAD = 9.9
+MODEL_VERSION_TO_LOAD = 0.4
 
 
 if RUN_ON_CLUSTER:
@@ -99,8 +101,10 @@ def main(argv):
 
     filenames = []
     labels = []
-    labels_counter = 0
+    labels_counter = 1
     labels_dict = {}
+    labels_dict[0] = 'unknown'
+
 
     entry_list = os.listdir(TRAIN_DIR)
     entry_list.sort() # ordino perchè os.listdir() restituisce in ordine arbitrario in teoria
@@ -112,15 +116,20 @@ def main(argv):
         if (os.path.isfile(TRAIN_DIR + '/' + entry) is True) or (entry == '_background_noise_'):
             continue
 
-        labels_dict[labels_counter] = entry
+        if entry not in UNKNOWN_LABELS:
+            labels_dict[labels_counter] = entry
 
         for file in os.listdir(TRAIN_DIR + '/' + entry):
 
             if file.lower().endswith('.wav'):
                 filenames.append(TRAIN_DIR + '/' + entry + '/' + file)
-                labels.append(labels_counter)
+                if entry not in UNKNOWN_LABELS:
+                    labels.append(labels_counter)
+                else:
+                    labels.append(0)
 
-        labels_counter += 1
+        if entry not in UNKNOWN_LABELS:
+            labels_counter += 1
 
     X_train_filenames, Y_train, X_val_filenames, Y_val, X_test_filenames, Y_test =\
         split_dataset_from_list(filenames, labels, VALIDATION_FILENAME, TESTING_FILENAME)
@@ -168,7 +177,7 @@ def main(argv):
     print('Done')
     print()
 
-    # # per selezionare meno file e fare qualche prova di training in locale
+    # per selezionare meno file e fare qualche prova di training in locale
     # n_train = 1000
     # n_val = 100
     # n_test = 20
